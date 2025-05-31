@@ -11,23 +11,57 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { CreditCard, Wallet } from "lucide-react"
+import { CreditCard, Wallet, Gift } from "lucide-react"
 import { format } from "date-fns"
 import { vi } from "date-fns/locale"
 import Link from "next/link"
 import { useToast } from "@/components/ui/use-toast"
 import { Tabs, TabsList, TabsContent, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
-interface Trip {
-  id: number
-  tripCode: string
-  origin: string
-  destination: string
+// API Response Types
+interface ApiSeat {
+  seatId: number
+  seatNumber: string
+  seatType: string
+  status: string
+  createdAt: string | null
+  updatedAt: string | null
+  price: number
+  booked: boolean
+}
+
+interface ApiCarriage {
+  carriageId: number
+  carriageNumber: string
+  carriageType: string
+  capacity: number
+  seats: ApiSeat[]
+}
+
+interface ApiTrip {
+  tripId: number
+  trainNumber: string
   departureTime: string
   arrivalTime: string
-  duration: string
-  trainType: string
+  carriages: ApiCarriage[]
+}
+
+interface ApiResponse {
+  data: ApiTrip[]
+  status: number
+  code: string
+  message: string
+  timestamp: number
+}
+
+// Internal Types
+interface Trip {
+  id: number
   trainNumber: string
+  departureTime: string
+  arrivalTime: string
   carriages: Carriage[]
 }
 
@@ -35,6 +69,7 @@ interface Carriage {
   id: number
   number: string
   type: string
+  capacity: number
   seats: Seat[]
 }
 
@@ -44,6 +79,7 @@ interface Seat {
   type: string
   available: boolean
   price: number
+  status: string
 }
 
 interface Passenger {
@@ -54,6 +90,23 @@ interface Passenger {
   price: number | null
 }
 
+interface PassengerTicketDto {
+  seatId: number
+  passengerName: string
+  identityCard: string
+}
+
+interface BookingCheckoutRequest {
+  tripId: number
+  paymentMethod: string
+  infoPhone: string
+  infoEmail: string
+  passengerTickets: PassengerTicketDto[]
+  promotionCode: string | null
+  returnTripId?: number
+  returnPassengerTickets?: PassengerTicketDto[]
+}
+
 export default function BookingPage() {
   const params = useParams()
   const searchParams = useSearchParams()
@@ -62,6 +115,10 @@ export default function BookingPage() {
   const tripId = params.tripId as string
   const returnTripId = searchParams.get("returnTripId")
   const passengersCount = Number.parseInt(searchParams.get("passengers") || "1")
+  const origin = searchParams.get("origin")
+  const destination = searchParams.get("destination")
+  const returnOrigin = searchParams.get("returnOrigin")
+  const returnDestination = searchParams.get("returnDestination")
 
   const [trip, setTrip] = useState<Trip | null>(null)
   const [returnTrip, setReturnTrip] = useState<Trip | null>(null)
@@ -73,7 +130,28 @@ export default function BookingPage() {
   const [promoCode, setPromoCode] = useState("")
   const [discount, setDiscount] = useState(0)
   const [paymentMethod, setPaymentMethod] = useState("vnPay")
+  const [isPromoDialogOpen, setIsPromoDialogOpen] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api"
+
+  const availablePromotions = [
+    {
+      code: "WINTER25",
+      description: "Giảm 25% cho tất cả chuyến tàu",
+      validUntil: "31/12/2024"
+    },
+    {
+      code: "SUMMER15",
+      description: "Giảm 15% cho chuyến tàu mùa hè",
+      validUntil: "31/08/2024"
+    },
+    {
+      code: "FAMILY10",
+      description: "Giảm 10% cho nhóm từ 3 người trở lên",
+      validUntil: "31/12/2024"
+    }
+  ]
 
   // Initialize passengers
   useEffect(() => {
@@ -90,117 +168,90 @@ export default function BookingPage() {
     setReturnPassengers(initialPassengers)
   }, [passengersCount])
 
-  // Mock data for demonstration
+  // Convert API data to internal format
+  const convertApiTripToTrip = (apiTrip: ApiTrip): Trip => {
+    return {
+      id: apiTrip.tripId,
+      trainNumber: apiTrip.trainNumber,
+      departureTime: apiTrip.departureTime,
+      arrivalTime: apiTrip.arrivalTime,
+      carriages: apiTrip.carriages.map((apiCarriage) => ({
+        id: apiCarriage.carriageId,
+        number: apiCarriage.carriageNumber,
+        type: apiCarriage.carriageType,
+        capacity: apiCarriage.capacity,
+        seats: apiCarriage.seats.map((apiSeat) => ({
+          id: apiSeat.seatId,
+          number: apiSeat.seatNumber,
+          type: apiSeat.seatType,
+          available: apiSeat.status === "active" && !apiSeat.booked,
+          price: apiSeat.price,
+          status: apiSeat.status,
+        })),
+      })),
+    }
+  }
+
+  // Fetch trip data from API
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      const mockTrip: Trip = {
-        id: Number.parseInt(tripId),
-        tripCode: "SE9-20250520",
-        origin: "Hà Nội",
-        destination: "Sài Gòn",
-        departureTime: "2025-05-20T07:00:00",
-        arrivalTime: "2025-05-21T13:30:00",
-        duration: "30h 30m",
-        trainType: "express",
-        trainNumber: "SE9",
-        carriages: [
-          {
-            id: 1,
-            number: "C1",
-            type: "soft_seat",
-            seats: Array(60)
-              .fill(null)
-              .map((_, i) => ({
-                id: i + 1,
-                number: `${i + 1}`,
-                type: i % 3 === 0 ? "window" : i % 3 === 1 ? "aisle" : "middle",
-                available: Math.random() > 0.3,
-                price: 400000,
-              })),
-          },
-          {
-            id: 2,
-            number: "C2",
-            type: "soft_sleeper",
-            seats: Array(40)
-              .fill(null)
-              .map((_, i) => ({
-                id: i + 61,
-                number: `B${i + 1}`,
-                type: i % 3 === 0 ? "lower_berth" : i % 3 === 1 ? "middle_berth" : "upper_berth",
-                available: Math.random() > 0.4,
-                price: 600000,
-              })),
-          },
-        ],
-      }
+    const fetchTripData = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch(`${baseUrl}/trips/${tripId}/carriages-with-seats`)
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        const apiResponse: ApiResponse = await response.json()
+        console.log("API Response:", apiResponse)
 
-      setTrip(mockTrip)
-      if (mockTrip.carriages.length > 0) {
-        setSelectedCarriage(mockTrip.carriages[0].id)
-      }
-
-      // Mock return trip data if returnTripId exists
-      if (returnTripId) {
-        const mockReturnTrip: Trip = {
-          id: Number.parseInt(returnTripId),
-          tripCode: "SE10-20250525",
-          origin: "Sài Gòn",
-          destination: "Hà Nội",
-          departureTime: "2025-05-25T07:00:00",
-          arrivalTime: "2025-05-26T13:30:00",
-          duration: "30h 30m",
-          trainType: "express",
-          trainNumber: "SE10",
-          carriages: [
-            {
-              id: 1,
-              number: "C1",
-              type: "soft_seat",
-              seats: Array(60)
-                .fill(null)
-                .map((_, i) => ({
-                  id: i + 1,
-                  number: `${i + 1}`,
-                  type: i % 3 === 0 ? "window" : i % 3 === 1 ? "aisle" : "middle",
-                  available: Math.random() > 0.3,
-                  price: 400000,
-                })),
-            },
-            {
-              id: 2,
-              number: "C2",
-              type: "soft_sleeper",
-              seats: Array(40)
-                .fill(null)
-                .map((_, i) => ({
-                  id: i + 61,
-                  number: `B${i + 1}`,
-                  type: i % 3 === 0 ? "lower_berth" : i % 3 === 1 ? "middle_berth" : "upper_berth",
-                  available: Math.random() > 0.4,
-                  price: 600000,
-                })),
-            },
-          ],
+        if (apiResponse.status !== 200) {
+          throw new Error(apiResponse.message || "API request failed")
         }
 
-        setReturnTrip(mockReturnTrip)
-        if (mockReturnTrip.carriages.length > 0) {
-          setSelectedReturnCarriage(mockReturnTrip.carriages[0].id)
+        // Convert API trip to internal format
+        const fetchedTrip = convertApiTripToTrip(apiResponse.data[0])
+        setTrip(fetchedTrip)
+        if (fetchedTrip.carriages.length > 0) {
+          setSelectedCarriage(fetchedTrip.carriages[0].id)
         }
+          console.log(returnTripId)
+        // Fetch return trip if returnTripId exists
+        if (returnTripId) {
+          const returnResponse = await fetch(`${baseUrl}/trips/${returnTripId}/carriages-with-seats`)
+          if (!returnResponse.ok) {
+            throw new Error(`HTTP error for return trip! status: ${returnResponse.status}`)
+          }
+          const returnApiResponse: ApiResponse = await returnResponse.json()
+          if (returnApiResponse.status !== 200) {
+            throw new Error(returnApiResponse.message || "Return trip API request failed")
+          }
+          const fetchedReturnTrip = convertApiTripToTrip(returnApiResponse.data[0])
+          setReturnTrip(fetchedReturnTrip)
+          if (fetchedReturnTrip.carriages.length > 0) {
+            setSelectedReturnCarriage(fetchedReturnTrip.carriages[0].id)
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching trip data:", err)
+        toast({
+          title: "Lỗi tải dữ liệu",
+          description: "Không thể tải thông tin chuyến tàu. Vui lòng thử lại.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
       }
+    }
 
-      setLoading(false)
-    }, 1000)
-  }, [tripId, returnTripId])
+    fetchTripData()
+  }, [tripId, returnTripId, baseUrl, toast])
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN").format(price)
   }
 
   const formatDateTime = (dateTimeStr: string) => {
-    const dateTime = new Date(dateTimeStr)
+    const dateTime = new Date(dateTimeStr.replace(" ", "T"))
     return format(dateTime, "HH:mm - dd/MM/yyyy", { locale: vi })
   }
 
@@ -284,14 +335,39 @@ export default function BookingPage() {
     setPassengersList(updatedPassengers)
   }
 
-  const handleApplyPromo = () => {
-    if (promoCode.toUpperCase() === "WINTER25") {
-      // Apply 25% discount
-      setDiscount(0.25)
-      toast({
-        title: "Mã giảm giá đã được áp dụng",
-        description: "Bạn được giảm 25% tổng giá trị đơn hàng.",
-      })
+  const handleApplyPromo = (code?: string) => {
+    const codeToApply = code || promoCode
+    const promotion = availablePromotions.find(p => p.code.toUpperCase() === codeToApply.toUpperCase())
+    
+    if (promotion) {
+      if (promotion.code === "WINTER25") {
+        setDiscount(0.25)
+        toast({
+          title: "Mã giảm giá đã được áp dụng",
+          description: "Bạn được giảm 25% tổng giá trị đơn hàng.",
+        })
+      } else if (promotion.code === "SUMMER15") {
+        setDiscount(0.15)
+        toast({
+          title: "Mã giảm giá đã được áp dụng",
+          description: "Bạn được giảm 15% tổng giá trị đơn hàng.",
+        })
+      } else if (promotion.code === "FAMILY10" && passengersCount >= 3) {
+        setDiscount(0.10)
+        toast({
+          title: "Mã giảm giá đã được áp dụng",
+          description: "Bạn được giảm 10% tổng giá trị đơn hàng.",
+        })
+      } else if (promotion.code === "FAMILY10" && passengersCount < 3) {
+        toast({
+          title: "Mã giảm giá không hợp lệ",
+          description: "Mã FAMILY10 chỉ áp dụng cho nhóm từ 3 người trở lên.",
+          variant: "destructive",
+        })
+        return false
+      }
+      setIsPromoDialogOpen(false)
+      return true
     } else {
       setDiscount(0)
       toast({
@@ -299,6 +375,7 @@ export default function BookingPage() {
         description: "Vui lòng kiểm tra lại mã giảm giá.",
         variant: "destructive",
       })
+      return false
     }
   }
 
@@ -306,23 +383,18 @@ export default function BookingPage() {
     const outboundTotal = passengers.reduce((sum, passenger) => sum + (passenger.price || 0), 0)
     const returnTotal = returnPassengers.reduce((sum, passenger) => sum + (passenger.price || 0), 0)
     const subtotal = outboundTotal + returnTotal
-    const discountAmount = subtotal * discount
-    return subtotal - discountAmount
-  }
-
-  const isFormValid = () => {
-    const outboundValid = passengers.every((p) => p.name.trim() !== "" && p.idCard.trim() !== "" && p.seatId !== null)
-    const returnValid = returnTrip
-      ? returnPassengers.every((p) => p.name.trim() !== "" && p.idCard.trim() !== "" && p.seatId !== null)
-      : true
-    return outboundValid && returnValid
+    const discountAmount = Math.round(subtotal * discount)
+    return {
+      subtotal,
+      discountAmount,
+      total: subtotal - discountAmount
+    }
   }
 
   const validatePassenger = (passenger: Passenger, index: number, isReturn = false) => {
     const errors: Record<string, string> = {}
     const prefix = isReturn ? `return_` : `outbound_`
 
-    // Validate name
     if (!passenger.name.trim()) {
       errors[`${prefix}name_${index}`] = "Họ và tên là bắt buộc"
     } else if (passenger.name.trim().length < 2) {
@@ -333,7 +405,6 @@ export default function BookingPage() {
       errors[`${prefix}name_${index}`] = "Họ và tên chỉ được chứa chữ cái và khoảng trắng"
     }
 
-    // Validate ID card
     if (!passenger.idCard.trim()) {
       errors[`${prefix}idCard_${index}`] = "Số CMND/CCCD là bắt buộc"
     } else if (passenger.idCard.trim().length < 9) {
@@ -344,7 +415,6 @@ export default function BookingPage() {
       errors[`${prefix}idCard_${index}`] = "Số CMND/CCCD chỉ được chứa số"
     }
 
-    // Validate seat selection
     if (!passenger.seatId) {
       errors[`${prefix}seat_${index}`] = "Vui lòng chọn ghế cho hành khách này"
     }
@@ -352,12 +422,12 @@ export default function BookingPage() {
     return errors
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setErrors({})
     let allErrors: Record<string, string> = {}
     let hasErrors = false
 
-    // Validate outbound passengers
+    // Validate passenger information
     passengers.forEach((passenger, index) => {
       const passengerErrors = validatePassenger(passenger, index, false)
       if (Object.keys(passengerErrors).length > 0) {
@@ -366,7 +436,6 @@ export default function BookingPage() {
       }
     })
 
-    // Validate return passengers if exists
     if (returnTrip) {
       returnPassengers.forEach((passenger, index) => {
         const passengerErrors = validatePassenger(passenger, index, true)
@@ -377,7 +446,6 @@ export default function BookingPage() {
       })
     }
 
-    // Check if all passengers have selected seats
     const outboundSeatsSelected = passengers.every((p) => p.seatId !== null)
     const returnSeatsSelected = returnTrip ? returnPassengers.every((p) => p.seatId !== null) : true
 
@@ -400,7 +468,6 @@ export default function BookingPage() {
         variant: "destructive",
       })
 
-      // Scroll to first error
       const firstErrorElement = document.querySelector(".border-red-500")
       if (firstErrorElement) {
         firstErrorElement.scrollIntoView({ behavior: "smooth", block: "center" })
@@ -408,25 +475,70 @@ export default function BookingPage() {
       return
     }
 
-    // If all validations pass, proceed with booking
-    toast({
-      title: "Đang xử lý đặt vé",
-      description: "Vui lòng đợi trong giây lát...",
-    })
+    try {
+      toast({
+        title: "Đang xử lý đặt vé",
+        description: "Vui lòng đợi trong giây lát...",
+      })
 
-    // Redirect to payment page after 2 seconds
-    setTimeout(() => {
-      router.push(`/payment?bookingId=BK${Date.now()}&amount=${getTotalPrice()}&method=${paymentMethod}`)
-    }, 2000)
+      // Prepare booking request
+      const bookingRequest: BookingCheckoutRequest = {
+        tripId: Number(tripId),
+        paymentMethod: paymentMethod.toUpperCase(),
+        infoPhone: "", // TODO: Add phone input field
+        infoEmail: "", // TODO: Add email input field
+        passengerTickets: passengers.map(p => ({
+          seatId: p.seatId!,
+          passengerName: p.name,
+          identityCard: p.idCard
+        })),
+        promotionCode: promoCode || null
+      }
+
+      // If it's a round trip, add return trip information
+      if (returnTrip) {
+        bookingRequest.returnTripId = Number(returnTripId)
+        bookingRequest.returnPassengerTickets = returnPassengers.map(p => ({
+          seatId: p.seatId!,
+          passengerName: p.name,
+          identityCard: p.idCard
+        }))
+      }
+
+      // Send booking request to API
+      const response = await fetch(`${baseUrl}/bookings/checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bookingRequest)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to create booking')
+      }
+
+      const { paymentUrl } = await response.json()
+      
+      // Redirect to VNPay payment page
+      window.location.href = paymentUrl
+    } catch (error) {
+      console.error('Error creating booking:', error)
+      toast({
+        title: "Lỗi đặt vé",
+        description: "Có lỗi xảy ra khi xử lý đặt vé. Vui lòng thử lại.",
+        variant: "destructive",
+      })
+    }
   }
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center">
+      <div className="flex min-h-screen flex-col">
         <header className="sticky top-0 z-50 w-full border-b bg-background">
-         
+          <div className="container flex h-16 items-center">
             <MainNav />
-    
+          </div>
         </header>
         <main className="flex-1">
           <div className="container py-4 md:py-6 lg:py-8">
@@ -444,9 +556,9 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center">
+    <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-50 w-full border-b bg-background">
-       
+        <div className="container flex h-16 items-center">
           <MainNav />
           <div className="ml-auto flex items-center space-x-4">
             <Link href="/login">
@@ -456,7 +568,7 @@ export default function BookingPage() {
               <Button>Đăng ký</Button>
             </Link>
           </div>
-        
+        </div>
       </header>
       <main className="flex-1">
         <div className="container py-4 md:py-6 lg:py-8">
@@ -472,7 +584,16 @@ export default function BookingPage() {
                 <CardHeader>
                   <CardTitle className="text-base md:text-lg">Chiều đi</CardTitle>
                   <CardDescription className="text-sm">
-                    {trip?.trainNumber} - {trip?.origin} → {trip?.destination}
+                    {trip?.trainNumber} - {origin} → {destination}
+                    {trip && (
+                      <>
+                        <br />
+                        <span>
+                          <b>Giờ đi:</b> {formatDateTime(trip.departureTime)} | <b>Giờ đến:</b>{" "}
+                          {formatDateTime(trip.arrivalTime)}
+                        </span>
+                      </>
+                    )}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -500,12 +621,14 @@ export default function BookingPage() {
                               value={passenger.name}
                               onChange={(e) => handlePassengerInfoChange(index, "name", e.target.value)}
                               placeholder="Nhập họ và tên"
-                              className={`text-sm md:text-base ${errors[`outbound_name_${index}`] ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-                              aria-invalid={!!errors[`outbound_name_${index}`]}
-                              aria-describedby={errors[`outbound_name_${index}`] ? `name-error-${index}` : undefined}
+                              className={`text-sm md:text-base ${
+                                errors[`outbound_name_${index}`]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                              }`}
                             />
                             {errors[`outbound_name_${index}`] && (
-                              <p id={`name-error-${index}`} className="text-xs text-red-500 mt-1 flex items-center">
+                              <p className="text-xs text-red-500 mt-1 flex items-center">
                                 <span className="mr-1">⚠️</span>
                                 {errors[`outbound_name_${index}`]}
                               </p>
@@ -520,14 +643,14 @@ export default function BookingPage() {
                               value={passenger.idCard}
                               onChange={(e) => handlePassengerInfoChange(index, "idCard", e.target.value)}
                               placeholder="Nhập số CMND/CCCD"
-                              className={`text-sm md:text-base ${errors[`outbound_idCard_${index}`] ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-                              aria-invalid={!!errors[`outbound_idCard_${index}`]}
-                              aria-describedby={
-                                errors[`outbound_idCard_${index}`] ? `idCard-error-${index}` : undefined
-                              }
+                              className={`text-sm md:text-base ${
+                                errors[`outbound_idCard_${index}`]
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                  : ""
+                              }`}
                             />
                             {errors[`outbound_idCard_${index}`] && (
-                              <p id={`idCard-error-${index}`} className="text-xs text-red-500 mt-1 flex items-center">
+                              <p className="text-xs text-red-500 mt-1 flex items-center">
                                 <span className="mr-1">⚠️</span>
                                 {errors[`outbound_idCard_${index}`]}
                               </p>
@@ -551,7 +674,9 @@ export default function BookingPage() {
                             </div>
                           ) : (
                             <div
-                              className={`text-xs md:text-sm p-2 border rounded-md border-dashed ${errors[`outbound_seat_${index}`] ? "border-red-500 bg-red-50" : "text-muted-foreground"}`}
+                              className={`text-xs md:text-sm p-2 border rounded-md border-dashed ${
+                                errors[`outbound_seat_${index}`] ? "border-red-500 bg-red-50" : "text-muted-foreground"
+                              }`}
                             >
                               Vui lòng chọn ghế bên dưới
                             </div>
@@ -576,7 +701,12 @@ export default function BookingPage() {
                   <CardHeader>
                     <CardTitle className="text-base md:text-lg">Chiều về</CardTitle>
                     <CardDescription className="text-sm">
-                      {returnTrip.trainNumber} - {returnTrip.origin} → {returnTrip.destination}
+                      {returnTrip.trainNumber} - {returnOrigin} → {returnDestination}
+                      <br />
+                      <span>
+                        <b>Giờ đi:</b> {formatDateTime(returnTrip.departureTime)} | <b>Giờ đến:</b>{" "}
+                        {formatDateTime(returnTrip.arrivalTime)}
+                      </span>
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -596,12 +726,14 @@ export default function BookingPage() {
                                 value={passenger.name}
                                 onChange={(e) => handlePassengerInfoChange(index, "name", e.target.value, true)}
                                 placeholder="Nhập họ và tên"
-                                className={`text-sm md:text-base ${errors[`return_name_${index}`] ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-                                aria-invalid={!!errors[`return_name_${index}`]}
-                                aria-describedby={errors[`return_name_${index}`] ? `name-error-${index}` : undefined}
+                                className={`text-sm md:text-base ${
+                                  errors[`return_name_${index}`]
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
+                                }`}
                               />
                               {errors[`return_name_${index}`] && (
-                                <p id={`name-error-${index}`} className="text-xs text-red-500 mt-1 flex items-center">
+                                <p className="text-xs text-red-500 mt-1 flex items-center">
                                   <span className="mr-1">⚠️</span>
                                   {errors[`return_name_${index}`]}
                                 </p>
@@ -616,14 +748,14 @@ export default function BookingPage() {
                                 value={passenger.idCard}
                                 onChange={(e) => handlePassengerInfoChange(index, "idCard", e.target.value, true)}
                                 placeholder="Nhập số CMND/CCCD"
-                                className={`text-sm md:text-base ${errors[`return_idCard_${index}`] ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-                                aria-invalid={!!errors[`return_idCard_${index}`]}
-                                aria-describedby={
-                                  errors[`return_idCard_${index}`] ? `idCard-error-${index}` : undefined
-                                }
+                                className={`text-sm md:text-base ${
+                                  errors[`return_idCard_${index}`]
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    : ""
+                                }`}
                               />
                               {errors[`return_idCard_${index}`] && (
-                                <p id={`idCard-error-${index}`} className="text-xs text-red-500 mt-1 flex items-center">
+                                <p className="text-xs text-red-500 mt-1 flex items-center">
                                   <span className="mr-1">⚠️</span>
                                   {errors[`return_idCard_${index}`]}
                                 </p>
@@ -647,7 +779,9 @@ export default function BookingPage() {
                               </div>
                             ) : (
                               <div
-                                className={`text-xs md:text-sm p-2 border rounded-md border-dashed ${errors[`return_seat_${index}`] ? "border-red-500 bg-red-50" : "text-muted-foreground"}`}
+                                className={`text-xs md:text-sm p-2 border rounded-md border-dashed ${
+                                  errors[`return_seat_${index}`] ? "border-red-500 bg-red-50" : "text-muted-foreground"
+                                }`}
                               >
                                 Vui lòng chọn ghế bên dưới
                               </div>
@@ -704,8 +838,9 @@ export default function BookingPage() {
                                   key={carriage.id}
                                   value={carriage.id.toString()}
                                   className="text-sm md:text-base"
-                                >
-                                  Toa {carriage.number} - {getCarriageTypeLabel(carriage.type)}
+                                > 
+                                  Toa {carriage.number} - {getCarriageTypeLabel(carriage.type)} (
+                                  {carriage.seats.filter((s) => s.available).length} ghế trống)
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -738,30 +873,28 @@ export default function BookingPage() {
                                   .find((c) => c.id === selectedCarriage)
                                   ?.seats.map((seat) => {
                                     const isSelected = passengers.some((p) => p.seatId === seat.id)
+                                    const isAvailable = seat.available
 
                                     return (
                                       <div key={seat.id} className="text-center">
                                         <button
-                                          className={`w-full p-1 md:p-2 rounded text-xs md:text-sm ${
-                                            !seat.available
+                                          className={`w-full p-1 md:p-2 rounded text-xs md:text-sm transition-colors ${
+                                            !isAvailable
                                               ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                                               : isSelected
                                                 ? "bg-green-600 text-white"
                                                 : "bg-green-100 hover:bg-green-200"
                                           }`}
-                                          disabled={!seat.available}
+                                          disabled={!isAvailable}
                                           onClick={() => {
-                                            // Find first passenger without a seat
                                             const passengerIndex = passengers.findIndex((p) => p.seatId === null)
                                             if (passengerIndex !== -1) {
                                               handleSeatSelect(passengerIndex, seat.id, selectedCarriage, seat.price)
                                             } else if (isSelected) {
-                                              // If already selected, find which passenger has this seat
                                               const selectedPassengerIndex = passengers.findIndex(
                                                 (p) => p.seatId === seat.id,
                                               )
                                               if (selectedPassengerIndex !== -1) {
-                                                // Deselect the seat
                                                 const updatedPassengers = [...passengers]
                                                 updatedPassengers[selectedPassengerIndex] = {
                                                   ...updatedPassengers[selectedPassengerIndex],
@@ -784,6 +917,9 @@ export default function BookingPage() {
                                         </button>
                                         <div className="text-[10px] md:text-xs mt-1 text-gray-500">
                                           {getSeatTypeLabel(seat.type)}
+                                        </div>
+                                        <div className="text-[10px] md:text-xs text-green-600 font-medium">
+                                          {formatPrice(seat.price)}đ
                                         </div>
                                       </div>
                                     )
@@ -815,7 +951,8 @@ export default function BookingPage() {
                                     value={carriage.id.toString()}
                                     className="text-sm md:text-base"
                                   >
-                                    Toa {carriage.number} - {getCarriageTypeLabel(carriage.type)}
+                                    Toa {carriage.number} - {getCarriageTypeLabel(carriage.type)} (
+                                    {carriage.seats.filter((s) => s.available).length} ghế trống)
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -848,20 +985,20 @@ export default function BookingPage() {
                                     .find((c) => c.id === selectedReturnCarriage)
                                     ?.seats.map((seat) => {
                                       const isSelected = returnPassengers.some((p) => p.seatId === seat.id)
+                                      const isAvailable = seat.available
 
                                       return (
                                         <div key={seat.id} className="text-center">
                                           <button
-                                            className={`w-full p-1 md:p-2 rounded text-xs md:text-sm ${
-                                              !seat.available
+                                            className={`w-full p-1 md:p-2 rounded text-xs md:text-sm transition-colors ${
+                                              !isAvailable
                                                 ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                                                 : isSelected
                                                   ? "bg-green-600 text-white"
                                                   : "bg-green-100 hover:bg-green-200"
                                             }`}
-                                            disabled={!seat.available}
+                                            disabled={!isAvailable}
                                             onClick={() => {
-                                              // Find first passenger without a seat
                                               const passengerIndex = returnPassengers.findIndex(
                                                 (p) => p.seatId === null,
                                               )
@@ -874,12 +1011,10 @@ export default function BookingPage() {
                                                   true,
                                                 )
                                               } else if (isSelected) {
-                                                // If already selected, find which passenger has this seat
                                                 const selectedPassengerIndex = returnPassengers.findIndex(
                                                   (p) => p.seatId === seat.id,
                                                 )
                                                 if (selectedPassengerIndex !== -1) {
-                                                  // Deselect the seat
                                                   const updatedPassengers = [...returnPassengers]
                                                   updatedPassengers[selectedPassengerIndex] = {
                                                     ...updatedPassengers[selectedPassengerIndex],
@@ -902,6 +1037,9 @@ export default function BookingPage() {
                                           </button>
                                           <div className="text-[10px] md:text-xs mt-1 text-gray-500">
                                             {getSeatTypeLabel(seat.type)}
+                                          </div>
+                                          <div className="text-[10px] md:text-xs text-green-600 font-medium">
+                                            {formatPrice(seat.price)}đ
                                           </div>
                                         </div>
                                       )
@@ -967,12 +1105,55 @@ export default function BookingPage() {
                       />
                       <Button
                         variant="outline"
-                        onClick={handleApplyPromo}
+                        onClick={() => handleApplyPromo()}
                         className="text-sm md:text-base whitespace-nowrap"
                       >
                         Áp dụng
                       </Button>
                     </div>
+                    
+                    {/* Available Promotions */}
+                    <Dialog open={isPromoDialogOpen} onOpenChange={setIsPromoDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground hover:text-foreground">
+                          <Gift className="h-3 w-3 mr-2" />
+                          Xem các mã khuyến mãi có thể sử dụng
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                          <DialogTitle>Mã khuyến mãi</DialogTitle>
+                        </DialogHeader>
+                        <ScrollArea className="h-[300px] pr-4">
+                          <div className="space-y-3">
+                            {availablePromotions.map((promo) => (
+                              <div key={promo.code} className="flex items-start space-x-2 p-3 bg-muted/50 rounded-md">
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-sm font-medium">{promo.code}</p>
+                                    <Badge variant="secondary" className="text-xs">
+                                      HSD: {promo.validUntil}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1">{promo.description}</p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setPromoCode(promo.code)
+                                    handleApplyPromo(promo.code)
+                                  }}
+                                  className="text-xs"
+                                >
+                                  Áp dụng
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </DialogContent>
+                    </Dialog>
                   </div>
 
                   <Separator />
@@ -1002,9 +1183,19 @@ export default function BookingPage() {
                   <Separator />
 
                   <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm md:text-base">Tổng tiền</span>
-                      <span className="font-medium text-base md:text-lg">{formatPrice(getTotalPrice())}đ</span>
+                    <div className="flex justify-between text-sm">
+                      <span>Tổng tiền hàng</span>
+                      <span>{formatPrice(getTotalPrice().subtotal)}đ</span>
+                    </div>
+                    {discount > 0 && (
+                      <div className="flex justify-between text-sm text-green-600">
+                        <span>Giảm giá ({discount * 100}%)</span>
+                        <span>-{formatPrice(getTotalPrice().discountAmount)}đ</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-medium">
+                      <span className="text-base">Thành tiền</span>
+                      <span className="text-lg text-green-600">{formatPrice(getTotalPrice().total)}đ</span>
                     </div>
                     <Button className="w-full text-sm md:text-base" onClick={handleSubmit}>
                       Tiến hành thanh toán

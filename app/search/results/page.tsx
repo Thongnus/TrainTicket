@@ -193,13 +193,13 @@ const [validateErrorsSelectTrip ,setValidateErrorsSelecTrip] =useState<Record<st
         console.log("Fetching trips from:", apiUrl.toString())
 
         const response = await fetch(apiUrl.toString())
-
+       
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
         }
 
         const apiResponse: ApiResponse = await response.json()
-
+        console.log("response:" ,apiResponse.data)
         if (apiResponse.status !== 200) {
           throw new Error(apiResponse.message || "API request failed")
         }
@@ -313,15 +313,15 @@ const [validateErrorsSelectTrip ,setValidateErrorsSelecTrip] =useState<Record<st
   const handleProceedToBooking = () => {
     const tripErrors = validateSelectedTrips(isRoundTrip, selectedOutboundTrip, selectedReturnTrip)
     setValidateErrorsSelecTrip(tripErrors)
+  
+    // Nếu có lỗi → hiện toast lỗi
     if (Object.keys(tripErrors).length > 0) {
-      // Show specific message for missing return trip
       if (tripErrors.return) {
         toast({
           title: "Vui lòng chọn chuyến về",
           description: tripErrors.return,
           variant: "destructive",
         })
-        return
       } else {
         toast({
           title: "Thông tin chưa hợp lệ",
@@ -332,7 +332,22 @@ const [validateErrorsSelectTrip ,setValidateErrorsSelecTrip] =useState<Record<st
       return
     }
     if (!selectedOutboundTrip) return
-    const bookingUrl = `/booking/${selectedOutboundTrip.id}?passengers=${passengers}${isRoundTrip ? `&returnTripId=${selectedReturnTrip?.id}` : ""}`
+    
+    // Build URL with all necessary parameters
+    const params = new URLSearchParams({
+      passengers: passengers,
+      origin: selectedOutboundTrip.origin || '',
+      destination: selectedOutboundTrip.destination || '',
+    })
+
+    // Add return trip parameters if it's a round trip
+    if (isRoundTrip && selectedReturnTrip) {
+      params.append('returnTripId', selectedReturnTrip.id.toString())
+      params.append('returnOrigin', selectedReturnTrip.origin || '') // Origin of return trip is destination of outbound
+      params.append('returnDestination', selectedReturnTrip.destination || '') // Destination of return trip is origin of outbound
+    }
+
+    const bookingUrl = `/booking/${selectedOutboundTrip.id}?${params.toString()}`
     router.push(bookingUrl)
   }
 
