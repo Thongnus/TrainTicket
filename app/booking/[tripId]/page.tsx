@@ -132,6 +132,8 @@ export default function BookingPage() {
   const [paymentMethod, setPaymentMethod] = useState("vnPay")
   const [isPromoDialogOpen, setIsPromoDialogOpen] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<{title: string; description: string} | null>(null)
 
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api"
 
@@ -424,6 +426,7 @@ export default function BookingPage() {
 
   const handleSubmit = async () => {
     setErrors({})
+    setSubmitError(null)
     let allErrors: Record<string, string> = {}
     let hasErrors = false
 
@@ -476,6 +479,9 @@ export default function BookingPage() {
     }
 
     try {
+      setIsSubmitting(true)
+      setSubmitError(null)
+      
       toast({
         title: "Đang xử lý đặt vé",
         description: "Vui lòng đợi trong giây lát...",
@@ -505,7 +511,6 @@ export default function BookingPage() {
         }))
       }
 
-      // Send booking request to API
       const response = await fetch(`${baseUrl}/bookings/checkout`, {
         method: 'POST',
         headers: {
@@ -514,21 +519,149 @@ export default function BookingPage() {
         body: JSON.stringify(bookingRequest)
       })
 
+      const responseData = await response.json()
+
       if (!response.ok) {
-        throw new Error('Failed to create booking')
+        // Handle specific error cases
+        if (response.status === 409 && responseData.code === "SEATLOCK") {
+          // Get seat details from the locked seats
+          const lockedSeats = responseData.data.map((seatId: number) => {
+            // Check in outbound trip
+            const outboundSeat = trip?.carriages
+              .flatMap(c => c.seats)
+              .find(s => s.id === seatId)
+            
+            if (outboundSeat) {
+              const carriage = trip?.carriages.find(c => 
+                c.seats.some(s => s.id === seatId)
+              )
+              return `Toa ${carriage?.number} - Ghế ${outboundSeat.number}`
+            }
+
+            // Check in return trip
+            const returnSeat = returnTrip?.carriages
+              .flatMap(c => c.seats)
+              .find(s => s.id === seatId)
+            
+            if (returnSeat) {
+              const carriage = returnTrip?.carriages.find(c => 
+                c.seats.some(s => s.id === seatId)
+              )
+              return `Toa ${carriage?.number} - Ghế ${returnSeat.number}`
+            }
+
+            return `Ghế ${seatId}`
+          })
+
+          const errorMessage = `Các ghế sau đã bị người khác đặt: ${lockedSeats.join(", ")}. Vui lòng chọn ghế khác.`
+          
+          setSubmitError({
+            title: "Ghế đã bị khóa",
+            description: errorMessage
+          })
+          toast({
+            title: "Ghế đã bị khóa",
+            description: errorMessage,
+            variant: "destructive",
+          })
+          // Refresh trip data to get updated seat status
+          const tripResponse = await fetch(`${baseUrl}/trips/${tripId}/carriages-with-seats`)
+          if (tripResponse.ok) {
+            const tripData = await tripResponse.json()
+            if (tripData.status === 200) {
+              const updatedTrip = convertApiTripToTrip(tripData.data[0])
+              setTrip(updatedTrip)
+            }
+          }
+          return
+        }
+
+        if (response.status === 400) {
+          setSubmitError({
+            title: "Thông tin không hợp lệ",
+            description: responseData.message || "Vui lòng kiểm tra lại thông tin đặt vé."
+          })
+          toast({
+            title: "Thông tin không hợp lệ",
+            description: responseData.message || "Vui lòng kiểm tra lại thông tin đặt vé.",
+            variant: "destructive",
+          })
+          return
+        }
+
+        if (response.status === 401) {
+          setSubmitError({
+            title: "Phiên đăng nhập hết hạn",
+            description: "Vui lòng đăng nhập lại để tiếp tục đặt vé."
+          })
+          toast({
+            title: "Phiên đăng nhập hết hạn",
+            description: "Vui lòng đăng nhập lại để tiếp tục đặt vé.",
+            variant: "destructive",
+          })
+          return
+        }
+
+        if (response.status === 403) {
+          setSubmitError({
+            title: "Không có quyền thực hiện",
+            description: "Bạn không có quyền thực hiện thao tác này."
+          })
+          toast({
+            title: "Không có quyền thực hiện",
+            description: "Bạn không có quyền thực hiện thao tác này.",
+            variant: "destructive",
+          })
+          return
+        }
+
+        if (response.status === 404) {
+          setSubmitError({
+            title: "Không tìm thấy thông tin",
+            description: "Không tìm thấy thông tin chuyến tàu hoặc ghế ngồi."
+          })
+          toast({
+            title: "Không tìm thấy thông tin",
+            description: "Không tìm thấy thông tin chuyến tàu hoặc ghế ngồi.",
+            variant: "destructive",
+          })
+          return
+        }
+
+        if (response.status === 500) {
+          setSubmitError({
+            title: "Lỗi hệ thống",
+            description: "Có lỗi xảy ra từ hệ thống. Vui lòng thử lại sau."
+          })
+          toast({
+            title: "Lỗi hệ thống",
+            description: "Có lỗi xảy ra từ hệ thống. Vui lòng thử lại sau.",
+            variant: "destructive",
+          })
+          return
+        }
+
+        // Handle other errors
+        throw new Error(responseData.message || 'Failed to create booking')
       }
 
-      const { paymentUrl } = await response.json()
+      const { paymentUrl } = responseData
       
       // Redirect to VNPay payment page
       window.location.href = paymentUrl
     } catch (error) {
       console.error('Error creating booking:', error)
+      setSubmitError({
+        title: "Lỗi đặt vé",
+        description: error instanceof Error ? error.message : "Có lỗi xảy ra khi xử lý đặt vé. Vui lòng thử lại."
+      })
       toast({
         title: "Lỗi đặt vé",
-        description: "Có lỗi xảy ra khi xử lý đặt vé. Vui lòng thử lại.",
+        description: error instanceof Error ? error.message : "Có lỗi xảy ra khi xử lý đặt vé. Vui lòng thử lại.",
         variant: "destructive",
       })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -556,7 +689,7 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col items-center ">
       <header className="sticky top-0 z-50 w-full border-b bg-background">
         <div className="container flex h-16 items-center">
           <MainNav />
@@ -1111,49 +1244,6 @@ export default function BookingPage() {
                         Áp dụng
                       </Button>
                     </div>
-                    
-                    {/* Available Promotions */}
-                    <Dialog open={isPromoDialogOpen} onOpenChange={setIsPromoDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground hover:text-foreground">
-                          <Gift className="h-3 w-3 mr-2" />
-                          Xem các mã khuyến mãi có thể sử dụng
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader>
-                          <DialogTitle>Mã khuyến mãi</DialogTitle>
-                        </DialogHeader>
-                        <ScrollArea className="h-[300px] pr-4">
-                          <div className="space-y-3">
-                            {availablePromotions.map((promo) => (
-                              <div key={promo.code} className="flex items-start space-x-2 p-3 bg-muted/50 rounded-md">
-                                <div className="flex-1">
-                                  <div className="flex items-center justify-between">
-                                    <p className="text-sm font-medium">{promo.code}</p>
-                                    <Badge variant="secondary" className="text-xs">
-                                      HSD: {promo.validUntil}
-                                    </Badge>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground mt-1">{promo.description}</p>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setPromoCode(promo.code)
-                                    handleApplyPromo(promo.code)
-                                  }}
-                                  className="text-xs"
-                                >
-                                  Áp dụng
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </ScrollArea>
-                      </DialogContent>
-                    </Dialog>
                   </div>
 
                   <Separator />
@@ -1197,8 +1287,25 @@ export default function BookingPage() {
                       <span className="text-base">Thành tiền</span>
                       <span className="text-lg text-green-600">{formatPrice(getTotalPrice().total)}đ</span>
                     </div>
-                    <Button className="w-full text-sm md:text-base" onClick={handleSubmit}>
-                      Tiến hành thanh toán
+                    {submitError && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-md mb-4">
+                        <p className="text-sm font-medium text-red-600">{submitError.title}</p>
+                        <p className="text-xs text-red-500 mt-1">{submitError.description}</p>
+                      </div>
+                    )}
+                    <Button 
+                      className="w-full text-sm md:text-base" 
+                      onClick={handleSubmit}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Đang xử lý...
+                        </>
+                      ) : (
+                        "Tiến hành thanh toán"
+                      )}
                     </Button>
                   </div>
                 </CardContent>

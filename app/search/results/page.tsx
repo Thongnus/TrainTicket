@@ -16,6 +16,8 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import CompactSearchForm from "@/app/search/results/Compact-search-form"
+import { CarriageType, getCarriageTypeLabel, toCarriageType } from "@/app/types/carriage"
+import { Filter, FilterState } from "./filter"
 
 // API Response Types
 interface ApiTrip {
@@ -25,6 +27,7 @@ interface ApiTrip {
   arrivalTime: string // "2025-05-20 18:00:00"
   routeName: string
   trainNumber: string
+  trainName: string
   trainType: string
   originStation: string
   destinationStation: string
@@ -59,10 +62,10 @@ interface Trip {
   duration: string
   trainType: string
   trainNumber: string
+  trainName: string
   minPrice: number
   maxPrice: number
-
-  carriageTypes: string[]
+  carriageTypes: CarriageType[]
   availableSeats: number
 }
 
@@ -119,6 +122,12 @@ function formatDuration(duration: string): string {
 
 // Helper function to convert API trip to internal Trip format
 function convertApiTripToTrip(apiTrip: ApiTrip): Trip {
+  // Split amenities string into array and convert each to CarriageType
+  const carriageTypes = apiTrip.amenities
+    .split(',')
+    .map(type => type.trim())
+    .map(toCarriageType)
+
   return {
     id: apiTrip.tripId,
     tripCode: apiTrip.tripCode,
@@ -129,11 +138,11 @@ function convertApiTripToTrip(apiTrip: ApiTrip): Trip {
     duration: formatDuration(apiTrip.duration),
     trainType: apiTrip.trainType,
     trainNumber: apiTrip.trainNumber,
+    trainName: apiTrip.trainName,
     minPrice: apiTrip.minPrice,
     maxPrice: apiTrip.maxPrice,
-  
-    carriageTypes: [apiTrip.amenities],
-    availableSeats: apiTrip.availableSeats,  // Convert single amenity to array
+    carriageTypes: carriageTypes,
+    availableSeats: apiTrip.availableSeats,
   }
 }
 
@@ -153,7 +162,9 @@ export default function SearchResults() {
   const [selectedOutboundTrip, setSelectedOutboundTrip] = useState<Trip | null>(null)
   const [selectedReturnTrip, setSelectedReturnTrip] = useState<Trip | null>(null)
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
-const [validateErrorsSelectTrip ,setValidateErrorsSelecTrip] =useState<Record<string, string>>({})
+  const [validateErrorsSelectTrip ,setValidateErrorsSelecTrip] =useState<Record<string, string>>({})
+  const [filteredTrips, setFilteredTrips] = useState<Trip[]>([])
+  const [filteredReturnTrips, setFilteredReturnTrips] = useState<Trip[]>([])
   const router = useRouter()
   const { toast } = useToast()
 
@@ -236,6 +247,51 @@ const [validateErrorsSelectTrip ,setValidateErrorsSelecTrip] =useState<Record<st
       setLoading(false)
     }
   }, [origin, destination, date, passengers, isRoundTrip, returnDate, toast])
+
+  // Add filter handling
+  const handleFilterChange = (filters: FilterState) => {
+    const filterTrips = (trips: Trip[]) => {
+      return trips.filter(trip => {
+        // Filter by carriage type
+        if (filters.carriageTypes.length > 0) {
+          const hasMatchingCarriageType = trip.carriageTypes.some(type =>
+            filters.carriageTypes.includes(type)
+          )
+          if (!hasMatchingCarriageType) return false
+        }
+
+        // Filter by price
+        if (trip.minPrice < filters.priceRange[0] || trip.maxPrice > filters.priceRange[1]) {
+          return false
+        }
+
+        // Filter by departure time
+        const departureHour = new Date(trip.departureTime).getHours()
+        if (departureHour < filters.departureTimeRange[0] || departureHour > filters.departureTimeRange[1]) {
+          return false
+        }
+
+        return true
+      })
+    }
+
+    setFilteredTrips(filterTrips(trips))
+    setFilteredReturnTrips(filterTrips(returnTrips))
+  }
+
+  // Update useEffect to set initial filtered trips
+  useEffect(() => {
+    if (trips.length > 0) {
+      setFilteredTrips(trips)
+    }
+    if (returnTrips.length > 0) {
+      setFilteredReturnTrips(returnTrips)
+    }
+  }, [trips, returnTrips])
+
+  // Calculate min and max prices for filter
+  const minPrice = Math.min(...trips.map(trip => trip.minPrice))
+  const maxPrice = Math.max(...trips.map(trip => trip.maxPrice))
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN").format(price)
@@ -352,7 +408,7 @@ const [validateErrorsSelectTrip ,setValidateErrorsSelecTrip] =useState<Record<st
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col items-center">
       <header className="sticky top-0 z-50 w-full border-b bg-background">
         <div className="container flex h-16 items-center">
           <MainNav />
@@ -453,118 +509,43 @@ const [validateErrorsSelectTrip ,setValidateErrorsSelecTrip] =useState<Record<st
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4 md:space-y-6">
-              <Tabs defaultValue="outbound" className="w-full">
-                <TabsList className="w-full md:w-auto mb-4">
-                  <TabsTrigger value="outbound" className="flex-1 md:flex-none">
-                    Chiều đi ({trips.length})
-                  </TabsTrigger>
-                  {isRoundTrip && (
-                    <TabsTrigger value="return" className="flex-1 md:flex-none">
-                      Chiều về ({returnTrips.length})
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Filter Sidebar */}
+              <div className="lg:col-span-1">
+                <Filter
+                  onFilterChange={handleFilterChange}
+                  minPrice={minPrice}
+                  maxPrice={maxPrice}
+                />
+              </div>
+
+              {/* Results */}
+              <div className="lg:col-span-3 space-y-4 md:space-y-6">
+                <Tabs defaultValue="outbound" className="w-full">
+                  <TabsList className="w-full md:w-auto mb-4">
+                    <TabsTrigger value="outbound" className="flex-1 md:flex-none">
+                      Chiều đi ({filteredTrips.length})
                     </TabsTrigger>
-                  )}
-                </TabsList>
-                <TabsContent value="outbound">
-                  <div className="space-y-3 md:space-y-4">
-                    {trips.map((trip) => (
-                      <Card key={trip.id} className={selectedOutboundTrip?.id === trip.id ? "border-green-500" : ""}>
-                        <CardHeader className="pb-2">
-                          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
-                            <div className="flex items-center">
-                              <Train className="h-4 w-4 md:h-5 md:w-5 mr-2 text-green-600" />
-                              <CardTitle className="text-base md:text-lg">
-                                {trip.trainNumber} - {getTrainTypeLabel(trip.trainType)}
-                              </CardTitle>
-                            </div>
-                            <Badge variant="outline" className="w-fit">
-                              {trip.tripCode}
-                            </Badge>
-                          </div>
-                          <CardDescription className="flex items-center mt-1 text-sm">
-                            <Calendar className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                            {date ? format(new Date(date), "dd/MM/yyyy", { locale: vi }) : ""}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-                            <div className="space-y-1">
-                              <p className="text-xs md:text-sm text-muted-foreground">Ga đi</p>
-                              <p className="text-sm md:text-base font-medium">{trip.origin}</p>
-                              <p className="text-xs md:text-sm">{formatDateTime(trip.departureTime)}</p>
-                            </div>
-                            <div className="flex items-center justify-center">
-                              <div className="text-center">
-                                <div className="flex items-center">
-                                  <div className="h-0.5 w-8 md:w-10 bg-gray-300"></div>
-                                  <ArrowRight className="h-3 w-3 md:h-4 md:w-4 mx-1 text-gray-500" />
-                                  <div className="h-0.5 w-8 md:w-10 bg-gray-300"></div>
-                                </div>
-                                <div className="flex items-center mt-1 text-xs text-muted-foreground">
-                                  <Clock className="h-3 w-3 mr-1" />
-                                  {trip.duration}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-xs md:text-sm text-muted-foreground">Ga đến</p>
-                              <p className="text-sm md:text-base font-medium">{trip.destination}</p>
-                              <p className="text-xs md:text-sm">{formatDateTime(trip.arrivalTime)}</p>
-                            </div>
-                          </div>
-
-                          <Separator className="my-3 md:my-4" />
-
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-                            <div>
-                              <p className="text-xs md:text-sm text-muted-foreground">Loại toa</p>
-                              <div className="flex flex-wrap gap-1 md:gap-2 mt-1">
-                                {trip.carriageTypes.map((type) => (
-                                  <Badge key={type} variant="secondary" className="text-xs">
-                                    {getCarriageTypeLabel(type)}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                            <div>
-                              <p className="text-xs md:text-sm text-muted-foreground">Chỗ trống</p>
-                              <p className="text-sm md:text-base font-medium mt-1">{trip.availableSeats} chỗ</p>
-                            </div>
-                            <div>
-                              <p className="text-xs md:text-sm text-muted-foreground">Giá vé</p>
-                              <p className="text-sm md:text-base font-medium text-green-600 mt-1">
-                                {formatPrice(trip.minPrice)}đ - {formatPrice(trip.maxPrice)}đ
-                              </p>
-                            </div>
-                          </div>
-                        </CardContent>
-                        <CardFooter>
-                          <Button
-                            className="w-full text-sm md:text-base"
-                            variant={selectedOutboundTrip?.id === trip.id ? "default" : "outline"}
-                            onClick={() => handleSelectTrip(trip)}
-                          >
-                            {selectedOutboundTrip?.id === trip.id ? "Đã chọn" : "Chọn chuyến này"}
-                          </Button>
-                        </CardFooter>
-                      </Card>
-                    ))}
-                  </div>
-                </TabsContent>
-                {isRoundTrip && (
-                  <TabsContent value="return">
+                    {isRoundTrip && (
+                      <TabsTrigger value="return" className="flex-1 md:flex-none">
+                        Chiều về ({filteredReturnTrips.length})
+                      </TabsTrigger>
+                    )}
+                  </TabsList>
+                  <TabsContent value="outbound">
                     <div className="space-y-3 md:space-y-4">
-                      {returnTrips.length === 0 ? (
+                      {filteredTrips.length === 0 ? (
                         <Card>
                           <CardContent className="py-8">
                             <div className="text-center">
-                              <p className="text-muted-foreground">Không có chuyến về nào phù hợp</p>
+                              <p className="text-muted-foreground">Không có chuyến tàu nào phù hợp với bộ lọc</p>
+                              <p className="text-sm text-muted-foreground mt-2">Vui lòng thử lại với các tiêu chí khác</p>
                             </div>
                           </CardContent>
                         </Card>
                       ) : (
-                        returnTrips.map((trip) => (
-                          <Card key={trip.id} className={selectedReturnTrip?.id === trip.id ? "border-green-500" : ""}>
+                        filteredTrips.map((trip) => (
+                          <Card key={trip.id} className={selectedOutboundTrip?.id === trip.id ? "border-green-500" : ""}>
                             <CardHeader className="pb-2">
                               <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
                                 <div className="flex items-center">
@@ -579,7 +560,7 @@ const [validateErrorsSelectTrip ,setValidateErrorsSelecTrip] =useState<Record<st
                               </div>
                               <CardDescription className="flex items-center mt-1 text-sm">
                                 <Calendar className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                                {returnDate ? format(new Date(returnDate), "dd/MM/yyyy", { locale: vi }) : ""}
+                                {date ? format(new Date(date), "dd/MM/yyyy", { locale: vi }) : ""}
                               </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -637,10 +618,10 @@ const [validateErrorsSelectTrip ,setValidateErrorsSelecTrip] =useState<Record<st
                             <CardFooter>
                               <Button
                                 className="w-full text-sm md:text-base"
-                                variant={selectedReturnTrip?.id === trip.id ? "default" : "outline"}
-                                onClick={() => handleSelectTrip(trip, true)}
+                                variant={selectedOutboundTrip?.id === trip.id ? "default" : "outline"}
+                                onClick={() => handleSelectTrip(trip)}
                               >
-                                {selectedReturnTrip?.id === trip.id ? "Đã chọn" : "Chọn chuyến này"}
+                                {selectedOutboundTrip?.id === trip.id ? "Đã chọn" : "Chọn chuyến này"}
                               </Button>
                             </CardFooter>
                           </Card>
@@ -648,59 +629,158 @@ const [validateErrorsSelectTrip ,setValidateErrorsSelecTrip] =useState<Record<st
                       )}
                     </div>
                   </TabsContent>
-                )}
-              </Tabs>
+                  {isRoundTrip && (
+                    <TabsContent value="return">
+                      <div className="space-y-3 md:space-y-4">
+                        {filteredReturnTrips.length === 0 ? (
+                          <Card>
+                            <CardContent className="py-8">
+                              <div className="text-center">
+                                <p className="text-muted-foreground">Không có chuyến tàu nào phù hợp với bộ lọc</p>
+                                <p className="text-sm text-muted-foreground mt-2">Vui lòng thử lại với các tiêu chí khác</p>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ) : (
+                          filteredReturnTrips.map((trip) => (
+                            <Card key={trip.id} className={selectedReturnTrip?.id === trip.id ? "border-green-500" : ""}>
+                              <CardHeader className="pb-2">
+                                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
+                                  <div className="flex items-center">
+                                    <Train className="h-4 w-4 md:h-5 md:w-5 mr-2 text-green-600" />
+                                    <CardTitle className="text-base md:text-lg">
+                                      {trip.trainNumber} - {getTrainTypeLabel(trip.trainType)}
+                                    </CardTitle>
+                                  </div>
+                                  <Badge variant="outline" className="w-fit">
+                                    {trip.tripCode}
+                                  </Badge>
+                                </div>
+                                <CardDescription className="flex items-center mt-1 text-sm">
+                                  <Calendar className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                                  {returnDate ? format(new Date(returnDate), "dd/MM/yyyy", { locale: vi }) : ""}
+                                </CardDescription>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                                  <div className="space-y-1">
+                                    <p className="text-xs md:text-sm text-muted-foreground">Ga đi</p>
+                                    <p className="text-sm md:text-base font-medium">{trip.origin}</p>
+                                    <p className="text-xs md:text-sm">{formatDateTime(trip.departureTime)}</p>
+                                  </div>
+                                  <div className="flex items-center justify-center">
+                                    <div className="text-center">
+                                      <div className="flex items-center">
+                                        <div className="h-0.5 w-8 md:w-10 bg-gray-300"></div>
+                                        <ArrowRight className="h-3 w-3 md:h-4 md:w-4 mx-1 text-gray-500" />
+                                        <div className="h-0.5 w-8 md:w-10 bg-gray-300"></div>
+                                      </div>
+                                      <div className="flex items-center mt-1 text-xs text-muted-foreground">
+                                        <Clock className="h-3 w-3 mr-1" />
+                                        {trip.duration}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-xs md:text-sm text-muted-foreground">Ga đến</p>
+                                    <p className="text-sm md:text-base font-medium">{trip.destination}</p>
+                                    <p className="text-xs md:text-sm">{formatDateTime(trip.arrivalTime)}</p>
+                                  </div>
+                                </div>
 
-              {/* Selected Trips Summary */}
-              {(selectedOutboundTrip || selectedReturnTrip) && (
-                <Card className="sticky bottom-0 md:bottom-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                  <CardContent className="p-3 md:p-4">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                      <div className="space-y-1">
-                        <h3 className="font-medium text-sm md:text-base">Chuyến đã chọn</h3>
-                        <div className="text-xs md:text-sm text-muted-foreground">
-                          {selectedOutboundTrip && (
-                            <div>
-                              Chiều đi: {selectedOutboundTrip.trainNumber} -{" "}
-                              {formatDateTime(selectedOutboundTrip.departureTime)}
-                            </div>
-                          )}
-                          {selectedReturnTrip && (
-                            <div>
-                              Chiều về: {selectedReturnTrip.trainNumber} -{" "}
-                              {formatDateTime(selectedReturnTrip.departureTime)}
-                            </div>
-                          )}
-                        </div>
+                                <Separator className="my-3 md:my-4" />
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                                  <div>
+                                    <p className="text-xs md:text-sm text-muted-foreground">Loại toa</p>
+                                    <div className="flex flex-wrap gap-1 md:gap-2 mt-1">
+                                      {trip.carriageTypes.map((type) => (
+                                        <Badge key={type} variant="secondary" className="text-xs">
+                                          {getCarriageTypeLabel(type)}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs md:text-sm text-muted-foreground">Chỗ trống</p>
+                                    <p className="text-sm md:text-base font-medium mt-1">{trip.availableSeats} chỗ</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs md:text-sm text-muted-foreground">Giá vé</p>
+                                    <p className="text-sm md:text-base font-medium text-green-600 mt-1">
+                                      {formatPrice(trip.minPrice)}đ - {formatPrice(trip.maxPrice)}đ
+                                    </p>
+                                  </div>
+                                </div>
+                              </CardContent>
+                              <CardFooter>
+                                <Button
+                                  className="w-full text-sm md:text-base"
+                                  variant={selectedReturnTrip?.id === trip.id ? "default" : "outline"}
+                                  onClick={() => handleSelectTrip(trip, true)}
+                                >
+                                  {selectedReturnTrip?.id === trip.id ? "Đã chọn" : "Chọn chuyến này"}
+                                </Button>
+                              </CardFooter>
+                            </Card>
+                          ))
+                        )}
                       </div>
-                      <Button onClick={handleProceedToBooking} className="w-full md:w-auto text-sm md:text-base">
-                        Tiếp tục đặt vé
-                      </Button>
-                    </div>
-                    {(validateErrorsSelectTrip.outbound || validateErrorsSelectTrip.return) && (
-                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            {validateErrorsSelectTrip.outbound && (
-                              <div className="flex items-center text-red-600 text-sm mb-2">
-                                <AlertCircle className="h-4 w-4 mr-2 flex-shrink-0" />
-                                <span>{validateErrorsSelectTrip.outbound}</span>
+                    </TabsContent>
+                  )}
+                </Tabs>
+
+                {/* Selected Trips Summary */}
+                {(selectedOutboundTrip || selectedReturnTrip) && (
+                  <Card className="sticky bottom-0 md:bottom-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                    <CardContent className="p-3 md:p-4">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div className="space-y-1">
+                          <h3 className="font-medium text-sm md:text-base">Chuyến đã chọn</h3>
+                          <div className="text-xs md:text-sm text-muted-foreground">
+                            {selectedOutboundTrip && (
+                              <div>
+                                Chiều đi: {selectedOutboundTrip.trainNumber} -{" "}
+                                {formatDateTime(selectedOutboundTrip.departureTime)}
                               </div>
                             )}
-                            {validateErrorsSelectTrip.return && (
-                              <div className="flex items-center text-red-600 text-sm">
-                                <AlertCircle className="h-4 w-4 mr-2 flex-shrink-0" />
-                                <span>{validateErrorsSelectTrip.return}</span>
+                            {selectedReturnTrip && (
+                              <div>
+                                Chiều về: {selectedReturnTrip.trainNumber} -{" "}
+                                {formatDateTime(selectedReturnTrip.departureTime)}
                               </div>
                             )}
                           </div>
-                        
                         </div>
+                        <Button onClick={handleProceedToBooking} className="w-full md:w-auto text-sm md:text-base">
+                          Tiếp tục đặt vé
+                        </Button>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+                      {(validateErrorsSelectTrip.outbound || validateErrorsSelectTrip.return) && (
+                        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              {validateErrorsSelectTrip.outbound && (
+                                <div className="flex items-center text-red-600 text-sm mb-2">
+                                  <AlertCircle className="h-4 w-4 mr-2 flex-shrink-0" />
+                                  <span>{validateErrorsSelectTrip.outbound}</span>
+                                </div>
+                              )}
+                              {validateErrorsSelectTrip.return && (
+                                <div className="flex items-center text-red-600 text-sm">
+                                  <AlertCircle className="h-4 w-4 mr-2 flex-shrink-0" />
+                                  <span>{validateErrorsSelectTrip.return}</span>
+                                </div>
+                              )}
+                            </div>
+                          
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             </div>
           )}
         </div>
