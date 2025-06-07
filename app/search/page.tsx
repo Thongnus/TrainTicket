@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/components/ui/use-toast"
+import { UserNav } from "@/components/user-nav"
 
 export default function SearchPage() {
   const router = useRouter()
@@ -112,13 +113,12 @@ export default function SearchPage() {
   return (
     <div className="flex min-h-screen flex-col items-center">
       <header className="sticky top-0 z-50 w-full border-b bg-background">
-       
+        <div className="container flex h-16 items-center">
           <MainNav />
           <div className="ml-auto flex items-center space-x-4">
-            <Button variant="outline">Đăng nhập</Button>
-            <Button>Đăng ký</Button>
+            <UserNav />
           </div>
-      
+        </div>
       </header>
       <main className="flex-1">
         <div className="container py-6 md:py-8">

@@ -5,6 +5,7 @@ import { PopularRoutes } from "@/components/popular-routes"
 import { NewsSection } from "@/components/news-section"
 import { MainNav } from "@/components/main-nav"
 import { Footer } from "@/components/footer"
+import { UserNav } from "@/components/user-nav"
 
 export default function Home() {
   return (
@@ -13,15 +14,7 @@ export default function Home() {
         <div className="container flex h-16 items-center">
           <MainNav />
           <div className="ml-auto flex items-center space-x-4">
-            <Link href="/admin">
-              <Button variant="ghost">Quản trị</Button>
-            </Link>
-            <Link href="/login">
-              <Button variant="outline">Đăng nhập</Button>
-            </Link>
-            <Link href="/register">
-              <Button>Đăng ký</Button>
-            </Link>
+            <UserNav />
           </div>
         </div>
       </header>

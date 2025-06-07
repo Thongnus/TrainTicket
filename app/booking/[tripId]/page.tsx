@@ -19,6 +19,8 @@ import { useToast } from "@/components/ui/use-toast"
 import { Tabs, TabsList, TabsContent, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { UserNav } from "@/components/user-nav"
+import { fetchWithAuth } from "@/lib/api"
 
 // API Response Types
 interface ApiSeat {
@@ -134,6 +136,10 @@ export default function BookingPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<{title: string; description: string} | null>(null)
+  const [contactInfo, setContactInfo] = useState({
+    email: "",
+    phone: ""
+  })
 
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api"
 
@@ -154,6 +160,32 @@ export default function BookingPage() {
       validUntil: "31/12/2024"
     }
   ]
+
+  // Fetch user info
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const response = await fetchWithAuth("/users/me")
+        if (!response.ok) {
+          throw new Error("Failed to fetch user info")
+        }
+        const userData = await response.json()
+        setContactInfo({
+          email: userData.email || "",
+          phone: userData.phone || ""
+        })
+      } catch (error) {
+        console.error("Error fetching user info:", error)
+        toast({
+          title: "Lỗi tải thông tin",
+          description: "Không thể tải thông tin người dùng. Vui lòng thử lại.",
+          variant: "destructive",
+        })
+      }
+    }
+
+    fetchUserInfo()
+  }, [toast])
 
   // Initialize passengers
   useEffect(() => {
@@ -199,7 +231,7 @@ export default function BookingPage() {
     const fetchTripData = async () => {
       try {
         setLoading(true)
-        const response = await fetch(`${baseUrl}/trips/${tripId}/carriages-with-seats`)
+        const response = await fetchWithAuth(`/trips/${tripId}/carriages-with-seats`)
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
         }
@@ -219,7 +251,7 @@ export default function BookingPage() {
           console.log(returnTripId)
         // Fetch return trip if returnTripId exists
         if (returnTripId) {
-          const returnResponse = await fetch(`${baseUrl}/trips/${returnTripId}/carriages-with-seats`)
+          const returnResponse = await fetchWithAuth(`/trips/${returnTripId}/carriages-with-seats`)
           if (!returnResponse.ok) {
             throw new Error(`HTTP error for return trip! status: ${returnResponse.status}`)
           }
@@ -246,7 +278,7 @@ export default function BookingPage() {
     }
 
     fetchTripData()
-  }, [tripId, returnTripId, baseUrl, toast])
+  }, [tripId, returnTripId, toast])
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN").format(price)
@@ -424,11 +456,36 @@ export default function BookingPage() {
     return errors
   }
 
+  const validateContactInfo = () => {
+    const errors: Record<string, string> = {}
+    
+    if (!contactInfo.email.trim()) {
+      errors.email = "Email là bắt buộc"
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactInfo.email.trim())) {
+      errors.email = "Email không hợp lệ"
+    }
+
+    if (!contactInfo.phone.trim()) {
+      errors.phone = "Số điện thoại là bắt buộc"
+    } else if (!/^[0-9]{10}$/.test(contactInfo.phone.trim())) {
+      errors.phone = "Số điện thoại phải có 10 chữ số"
+    }
+
+    return errors
+  }
+
   const handleSubmit = async () => {
     setErrors({})
     setSubmitError(null)
     let allErrors: Record<string, string> = {}
     let hasErrors = false
+
+    // Validate contact info
+    const contactErrors = validateContactInfo()
+    if (Object.keys(contactErrors).length > 0) {
+      hasErrors = true
+      allErrors = { ...allErrors, ...contactErrors }
+    }
 
     // Validate passenger information
     passengers.forEach((passenger, index) => {
@@ -491,8 +548,8 @@ export default function BookingPage() {
       const bookingRequest: BookingCheckoutRequest = {
         tripId: Number(tripId),
         paymentMethod: paymentMethod.toUpperCase(),
-        infoPhone: "", // TODO: Add phone input field
-        infoEmail: "", // TODO: Add email input field
+        infoPhone: contactInfo.phone,
+        infoEmail: contactInfo.email,
         passengerTickets: passengers.map(p => ({
           seatId: p.seatId!,
           passengerName: p.name,
@@ -511,7 +568,7 @@ export default function BookingPage() {
         }))
       }
 
-      const response = await fetch(`${baseUrl}/bookings/checkout`, {
+      const response = await fetchWithAuth("/bookings/checkout", {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -565,7 +622,7 @@ export default function BookingPage() {
             variant: "destructive",
           })
           // Refresh trip data to get updated seat status
-          const tripResponse = await fetch(`${baseUrl}/trips/${tripId}/carriages-with-seats`)
+          const tripResponse = await fetchWithAuth(`/trips/${tripId}/carriages-with-seats`)
           if (tripResponse.ok) {
             const tripData = await tripResponse.json()
             if (tripData.status === 200) {
@@ -584,19 +641,6 @@ export default function BookingPage() {
           toast({
             title: "Thông tin không hợp lệ",
             description: responseData.message || "Vui lòng kiểm tra lại thông tin đặt vé.",
-            variant: "destructive",
-          })
-          return
-        }
-
-        if (response.status === 401) {
-          setSubmitError({
-            title: "Phiên đăng nhập hết hạn",
-            description: "Vui lòng đăng nhập lại để tiếp tục đặt vé."
-          })
-          toast({
-            title: "Phiên đăng nhập hết hạn",
-            description: "Vui lòng đăng nhập lại để tiếp tục đặt vé.",
             variant: "destructive",
           })
           return
@@ -667,7 +711,7 @@ export default function BookingPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-screen flex-col items-centercenter">
         <header className="sticky top-0 z-50 w-full border-b bg-background">
           <div className="container flex h-16 items-center">
             <MainNav />
@@ -694,12 +738,7 @@ export default function BookingPage() {
         <div className="container flex h-16 items-center">
           <MainNav />
           <div className="ml-auto flex items-center space-x-4">
-            <Link href="/login">
-              <Button variant="outline">Đăng nhập</Button>
-            </Link>
-            <Link href="/register">
-              <Button>Đăng ký</Button>
-            </Link>
+            <UserNav />
           </div>
         </div>
       </header>
@@ -712,6 +751,62 @@ export default function BookingPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
             <div className="lg:col-span-2 space-y-4 md:space-y-6">
+              {/* Contact Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base md:text-lg">Thông tin liên hệ</CardTitle>
+                  <CardDescription className="text-sm">
+                    Thông tin này sẽ được sử dụng để liên lạc về vé của bạn
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-sm">
+                        Email
+                      </Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={contactInfo.email}
+                        onChange={(e) => setContactInfo(prev => ({ ...prev, email: e.target.value }))}
+                        placeholder="Nhập email của bạn"
+                        className={`text-sm md:text-base ${
+                          errors.email ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""
+                        }`}
+                      />
+                      {errors.email && (
+                        <p className="text-xs text-red-500 mt-1 flex items-center">
+                          <span className="mr-1">⚠️</span>
+                          {errors.email}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone" className="text-sm">
+                        Số điện thoại
+                      </Label>
+                      <Input
+                        id="phone"
+                        type="tel"
+                        value={contactInfo.phone}
+                        onChange={(e) => setContactInfo(prev => ({ ...prev, phone: e.target.value }))}
+                        placeholder="Nhập số điện thoại"
+                        className={`text-sm md:text-base ${
+                          errors.phone ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""
+                        }`}
+                      />
+                      {errors.phone && (
+                        <p className="text-xs text-red-500 mt-1 flex items-center">
+                          <span className="mr-1">⚠️</span>
+                          {errors.phone}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Outbound Trip */}
               <Card>
                 <CardHeader>

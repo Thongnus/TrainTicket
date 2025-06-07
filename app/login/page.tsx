@@ -88,14 +88,15 @@ export default function LoginPage() {
           username: formData.username,
           password: formData.password,
         }),
-        credentials: "include", // Cho phép gửi và nhận cookies
+        // credentials: "include", // Cho phép gửi và nhận cookies
       })
 
       const data = await response.json()
 
       if (response.ok) {
-        // Store access token in localStorage
+        // Store tokens in localStorage
         localStorage.setItem("token", data.token)
+        localStorage.setItem("refreshToken", data.refreshToken)
         
         // Store user data in localStorage
         localStorage.setItem("user", JSON.stringify({
