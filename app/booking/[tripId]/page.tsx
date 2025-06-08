@@ -711,7 +711,7 @@ export default function BookingPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-centercenter">
+      <div className="flex min-h-screen flex-col items-centercenter items-center">
         <header className="sticky top-0 z-50 w-full border-b bg-background">
           <div className="container flex h-16 items-center">
             <MainNav />

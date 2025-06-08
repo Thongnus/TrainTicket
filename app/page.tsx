@@ -37,11 +37,6 @@ export default function Home() {
                       Tìm vé ngay
                     </Button>
                   </Link>
-                  <Link href="/schedule">
-                    <Button size="lg" variant="outline" className="w-full">
-                      Xem lịch trình
-                    </Button>
-                  </Link>
                 </div>
               </div>
               <div className="mx-auto flex w-full max-w-[400px] flex-col justify-center">

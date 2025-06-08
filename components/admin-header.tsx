@@ -10,12 +10,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Bell, LogOut, Settings, User } from "lucide-react"
-import { AdminNav } from "@/components/admin-nav"
+
 
 export function AdminHeader() {
   return (
     <div className="flex">
-      <AdminNav className="hidden md:flex" />
+  
       <div className="flex-1">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-6">
           <div className="flex flex-1 items-center justify-end space-x-4">

@@ -33,15 +33,7 @@ export function MainNav() {
         >
           Tìm vé
         </Link>
-        <Link
-          href="/schedule"
-          className={cn(
-            "transition-colors hover:text-foreground/80",
-            pathname?.startsWith("/schedule") ? "text-foreground" : "text-foreground/60",
-          )}
-        >
-          Lịch trình
-        </Link>
+    
         <Link
           href="/news"
           className={cn(
@@ -51,15 +43,7 @@ export function MainNav() {
         >
           Tin tức
         </Link>
-        <Link
-          href="/admin"
-          className={cn(
-            "transition-colors hover:text-foreground/80",
-            pathname?.startsWith("/admin") ? "text-foreground" : "text-foreground/60",
-          )}
-        >
-          Quản trị
-        </Link>
+ 
       </nav>
     </div>
   )
