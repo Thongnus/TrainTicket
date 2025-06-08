@@ -37,7 +37,7 @@ export async function refreshToken() {
 export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const token = localStorage.getItem("token")
   if (!token) {
-    throw new Error("No token found")
+    throw new Error("NO_TOKEN")
   }
 
   const headers = {

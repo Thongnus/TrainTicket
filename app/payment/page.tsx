@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { CheckCircle, Clock, CreditCard } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/components/ui/use-toast"
+import { UserNav } from "@/components/user-nav"
 
 export default function PaymentPage() {
   const searchParams = useSearchParams()
@@ -93,17 +94,12 @@ export default function PaymentPage() {
   return (
     <div className="flex min-h-screen flex-col items-center">
       <header>
-      
+        <div className="container flex h-16 items-center">
           <MainNav />
           <div className="ml-auto flex items-center space-x-4">
-            <Link href="/login">
-              <Button variant="outline">Đăng nhập</Button>
-            </Link>
-            <Link href="/register">
-              <Button>Đăng ký</Button>
-            </Link>
+            <UserNav />
           </div>
-     
+        </div>
       </header>
       <main className="flex-1">
         <div className="container py-6 md:py-8">

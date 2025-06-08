@@ -18,6 +18,8 @@ import { useToast } from "@/components/ui/use-toast"
 import CompactSearchForm from "@/app/search/results/Compact-search-form"
 import { CarriageType, getCarriageTypeLabel, toCarriageType } from "@/app/types/carriage"
 import { Filter, FilterState } from "./filter"
+import { UserNav } from "@/components/user-nav"
+import { fetchWithAuth } from "@/lib/api"
 
 // API Response Types
 interface ApiTrip {
@@ -155,6 +157,9 @@ export default function SearchResults() {
   const isRoundTrip = searchParams.get("roundTrip") === "true"
   const returnDate = searchParams.get("returnDate")
 
+  const router = useRouter()
+  const { toast } = useToast()
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api"
   const [trips, setTrips] = useState<Trip[]>([])
   const [returnTrips, setReturnTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
@@ -165,8 +170,6 @@ export default function SearchResults() {
   const [validateErrorsSelectTrip ,setValidateErrorsSelecTrip] =useState<Record<string, string>>({})
   const [filteredTrips, setFilteredTrips] = useState<Trip[]>([])
   const [filteredReturnTrips, setFilteredReturnTrips] = useState<Trip[]>([])
-  const router = useRouter()
-  const { toast } = useToast()
 
   // Fetch trips from API
   useEffect(() => {
@@ -369,8 +372,7 @@ export default function SearchResults() {
   const handleProceedToBooking = () => {
     const tripErrors = validateSelectedTrips(isRoundTrip, selectedOutboundTrip, selectedReturnTrip)
     setValidateErrorsSelecTrip(tripErrors)
-  
-    // Nếu có lỗi → hiện toast lỗi
+
     if (Object.keys(tripErrors).length > 0) {
       if (tripErrors.return) {
         toast({
@@ -387,11 +389,12 @@ export default function SearchResults() {
       }
       return
     }
+
     if (!selectedOutboundTrip) return
     
     // Build URL with all necessary parameters
     const params = new URLSearchParams({
-      passengers: passengers,
+      passengers: passengers.toString(),
       origin: selectedOutboundTrip.origin || '',
       destination: selectedOutboundTrip.destination || '',
     })
@@ -399,8 +402,8 @@ export default function SearchResults() {
     // Add return trip parameters if it's a round trip
     if (isRoundTrip && selectedReturnTrip) {
       params.append('returnTripId', selectedReturnTrip.id.toString())
-      params.append('returnOrigin', selectedReturnTrip.origin || '') // Origin of return trip is destination of outbound
-      params.append('returnDestination', selectedReturnTrip.destination || '') // Destination of return trip is origin of outbound
+      params.append('returnOrigin', selectedReturnTrip.origin || '')
+      params.append('returnDestination', selectedReturnTrip.destination || '')
     }
 
     const bookingUrl = `/booking/${selectedOutboundTrip.id}?${params.toString()}`
@@ -413,12 +416,7 @@ export default function SearchResults() {
         <div className="container flex h-16 items-center">
           <MainNav />
           <div className="ml-auto flex items-center space-x-4">
-            <Link href="/login">
-              <Button variant="outline">Đăng nhập</Button>
-            </Link>
-            <Link href="/register">
-              <Button>Đăng ký</Button>
-            </Link>
+            <UserNav />
           </div>
         </div>
       </header>
@@ -509,18 +507,20 @@ export default function SearchResults() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="flex flex-col lg:flex-row gap-6">
               {/* Filter Sidebar */}
-              <div className="lg:col-span-1">
-                <Filter
-                  onFilterChange={handleFilterChange}
-                  minPrice={minPrice}
-                  maxPrice={maxPrice}
-                />
+              <div className="w-full lg:w-64 flex-shrink-0">
+                <div className="sticky top-24">
+                  <Filter
+                    onFilterChange={handleFilterChange}
+                    minPrice={minPrice}
+                    maxPrice={maxPrice}
+                  />
+                </div>
               </div>
 
               {/* Results */}
-              <div className="lg:col-span-3 space-y-4 md:space-y-6">
+              <div className="flex-1 min-h-[600px]">
                 <Tabs defaultValue="outbound" className="w-full">
                   <TabsList className="w-full md:w-auto mb-4">
                     <TabsTrigger value="outbound" className="flex-1 md:flex-none">
@@ -535,7 +535,7 @@ export default function SearchResults() {
                   <TabsContent value="outbound">
                     <div className="space-y-3 md:space-y-4">
                       {filteredTrips.length === 0 ? (
-                        <Card>
+                        <Card className="min-h-[200px] flex items-center justify-center">
                           <CardContent className="py-8">
                             <div className="text-center">
                               <p className="text-muted-foreground">Không có chuyến tàu nào phù hợp với bộ lọc</p>

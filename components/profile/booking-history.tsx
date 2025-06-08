@@ -63,6 +63,7 @@ interface Payment {
   status: string
   transactionId: string
   paidAt: string
+  paymentDate: string
 }
 
 interface Booking {
@@ -123,6 +124,8 @@ export function BookingHistory() {
   }
 
   const formatDateTime = (dateTimeStr: string | number[]) => {
+    if (!dateTimeStr) return "N/A";
+    
     let dateTime: Date
     if (Array.isArray(dateTimeStr)) {
       dateTime = new Date(dateTimeStr[0], dateTimeStr[1] - 1, dateTimeStr[2], dateTimeStr[3], dateTimeStr[4])
@@ -347,7 +350,7 @@ export function BookingHistory() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Thời gian thanh toán:</span>
-                      <span className="font-medium">{formatDateTime(selectedBooking.payment.paidAt)}</span>
+                      <span className="font-medium">{formatDateTime(selectedBooking.payment.paymentDate)}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Tổng tiền:</span>

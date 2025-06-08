@@ -13,8 +13,8 @@ type PopularRoute = {
   duration: string
   trainNumber: string
   averagePrice: number
-  originId: number
-  destinationId: number
+  originStationId: number
+  destinationStationId: number
 }
 
 const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api"
@@ -32,6 +32,15 @@ export function PopularRoutes() {
         console.error("Failed to fetch popular routes:", error)
       })
   }, [])
+
+  const getSearchUrl = (route: PopularRoute) => {
+    const today = new Date()
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const dateStr = tomorrow.toISOString().split('T')[0]
+    
+    return `/search/results?origin=${route.originStationId}&destination=${route.destinationStationId}&date=${dateStr}&passengers=1`
+  }
 
   return (
     <section className="w-full py-12 md:py-24 lg:py-32">
@@ -72,7 +81,7 @@ export function PopularRoutes() {
               </CardContent>
               <CardFooter className="p-4 pt-0">
                 <Link
-                  href={`/search/results?origin=${route.originId}&destination=${route.destinationId}&date=${new Date().toISOString().split("T")[0]}&passengers=1`}
+                  href={getSearchUrl(route)}
                   className="w-full"
                 >
                   <Button className="w-full" variant="outline">
