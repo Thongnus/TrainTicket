@@ -34,12 +34,7 @@ export default function PaymentReturn() {
   }, [searchParams, toast])
 
   return (
-    <div className="flex min-h-screen flex-col items-centercenter">
-      <header className="sticky top-0 z-50 w-full border-b bg-background">
-        <div className="container flex h-16 items-center">
-          <MainNav />
-        </div>
-      </header>
+    <div className="flex min-h-screen flex-col items-center">
       <main className="flex-1">
         <div className="container py-4 md:py-6 lg:py-8">
           <div className="mx-auto max-w-2xl">

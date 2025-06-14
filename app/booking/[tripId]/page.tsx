@@ -712,11 +712,7 @@ export default function BookingPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col items-centercenter items-center">
-        <header className="sticky top-0 z-50 w-full border-b bg-background">
-          <div className="container flex h-16 items-center">
-            <MainNav />
-          </div>
-        </header>
+      
         <main className="flex-1">
           <div className="container py-4 md:py-6 lg:py-8">
             <div className="flex items-center justify-center py-12">
@@ -733,15 +729,7 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center ">
-      <header className="sticky top-0 z-50 w-full border-b bg-background">
-        <div className="container flex h-16 items-center">
-          <MainNav />
-          <div className="ml-auto flex items-center space-x-4">
-            <UserNav />
-          </div>
-        </div>
-      </header>
+    <div className="flex min-h-screen flex-col items-center">
       <main className="flex-1">
         <div className="container py-4 md:py-6 lg:py-8">
           <div className="mb-4 md:mb-6">

@@ -118,8 +118,14 @@ function convertApiTimeToISOString(timeString: string): string {
 
 // Helper function to convert API duration to readable format
 function formatDuration(duration: string): string {
-  const [hours, minutes] = duration.split(":")
-  return `${hours}h ${minutes}m`
+  // If duration is already in the format "Xh Ym", return it as is
+  if (duration.includes('h')) {
+    return duration;
+  }
+  
+  // Otherwise, handle the "HH:mm" format
+  const [hours, minutes] = duration.split(":");
+  return `${hours}h ${minutes}m`;
 }
 
 // Helper function to convert API trip to internal Trip format
@@ -412,14 +418,6 @@ export default function SearchResults() {
 
   return (
     <div className="flex min-h-screen flex-col items-center">
-      <header className="sticky top-0 z-50 w-full border-b bg-background">
-        <div className="container flex h-16 items-center">
-          <MainNav />
-          <div className="ml-auto flex items-center space-x-4">
-            <UserNav />
-          </div>
-        </div>
-      </header>
       <main className="flex-1">
         <div className="container py-4 md:py-6 lg:py-8">
           <div className="mb-4 md:mb-6">

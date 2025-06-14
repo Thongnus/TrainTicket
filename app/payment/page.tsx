@@ -93,14 +93,6 @@ export default function PaymentPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center">
-      <header>
-        <div className="container flex h-16 items-center">
-          <MainNav />
-          <div className="ml-auto flex items-center space-x-4">
-            <UserNav />
-          </div>
-        </div>
-      </header>
       <main className="flex-1">
         <div className="container py-6 md:py-8">
           <div className="mb-6">

@@ -5,7 +5,7 @@ const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api"
 export async function refreshToken() {
   const refreshToken = localStorage.getItem("refreshToken")
   if (!refreshToken) {
-    throw new Error("No refresh token found")
+    throw new Error("NO_REFRESH_TOKEN")
   }
 
   try {
@@ -18,7 +18,7 @@ export async function refreshToken() {
     })
 
     if (!response.ok) {
-      throw new Error("Failed to refresh token")
+      throw new Error("REFRESH_TOKEN_FAILED")
     }
 
     const data = await response.json()
@@ -37,6 +37,8 @@ export async function refreshToken() {
 export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const token = localStorage.getItem("token")
   if (!token) {
+    // Nếu không có token, chuyển hướng về trang login
+    window.location.href = `/login?returnUrl=${encodeURIComponent(window.location.pathname)}`
     throw new Error("NO_TOKEN")
   }
 
@@ -54,14 +56,20 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
 
     if (response.status === 401) {
       // Token expired, try to refresh
-      const newToken = await refreshToken()
-      headers.Authorization = `Bearer ${newToken}`
-      
-      // Retry the request with new token
-      return fetch(`${baseUrl}${url}`, {
-        ...options,
-        headers,
-      })
+      try {
+        const newToken = await refreshToken()
+        headers.Authorization = `Bearer ${newToken}`
+        
+        // Retry the request with new token
+        return fetch(`${baseUrl}${url}`, {
+          ...options,
+          headers,
+        })
+      } catch (refreshError) {
+        // Nếu refresh token thất bại, chuyển hướng về trang login
+        window.location.href = `/login?returnUrl=${encodeURIComponent(window.location.pathname)}`
+        throw refreshError
+      }
     }
 
     return response
