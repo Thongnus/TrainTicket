@@ -1,9 +1,8 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,6 +14,7 @@ import { MainNav } from "@/components/main-nav"
 import { Footer } from "@/components/footer"
 import { Eye, EyeOff, Train, AlertCircle, Loader2 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
+import { useAuth } from "@/lib/auth-context"
 
 interface LoginFormData {
   username: string
@@ -29,7 +29,9 @@ interface LoginErrors {
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
+  const { setUser } = useAuth()
   const [formData, setFormData] = useState<LoginFormData>({
     username: "",
     password: "",
@@ -37,6 +39,12 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<LoginErrors>({})
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+  // Debug log for returnUrl
+  useEffect(() => {
+    const returnUrl = searchParams.get("returnUrl")
+    console.log("Return URL from params:", returnUrl)
+  }, [searchParams])
 
   const validateForm = (): boolean => {
     const newErrors: LoginErrors = {}
@@ -88,7 +96,6 @@ export default function LoginPage() {
           username: formData.username,
           password: formData.password,
         }),
-        // credentials: "include", // Cho phép gửi và nhận cookies
       })
 
       const data = await response.json()
@@ -98,21 +105,31 @@ export default function LoginPage() {
         localStorage.setItem("token", data.token)
         localStorage.setItem("refreshToken", data.refreshToken)
         
-        // Store user data in localStorage
-        localStorage.setItem("user", JSON.stringify({
+        // Store user data in localStorage and update auth context
+        const userData = {
           id: data.id,
           username: data.username,
           roles: data.roles.map((role: any) => role.authority)
-        }))
+        }
+        localStorage.setItem("user", JSON.stringify(userData))
+        setUser(userData)
 
         toast({
           title: "Đăng nhập thành công",
           description: `Chào mừng ${data.username}!`,
         })
 
-        // Redirect to home page or previous page
-        const returnUrl = new URLSearchParams(window.location.search).get("returnUrl") || "/"
-        router.push(returnUrl)
+        // Get returnUrl from search params or default to home page
+        const returnUrl = searchParams.get("returnUrl")
+        console.log("Return URL before redirect:", returnUrl)
+        
+        if (returnUrl) {
+          const decodedUrl = decodeURIComponent(returnUrl)
+          console.log("Decoded return URL:", decodedUrl)
+          router.replace(decodedUrl)
+        } else {
+          router.replace("/")
+        }
       } else {
         // Handle API errors
         if (data.code === "INVALID_CREDENTIALS") {

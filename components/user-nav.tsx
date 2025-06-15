@@ -13,19 +13,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { LogOut, Settings, User } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useAuth } from "@/lib/auth-context"
 import { fetchWithAuth } from "@/lib/api"
 
 export function UserNav() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
-
-  useEffect(() => {
-    const userStr = localStorage.getItem("user")
-    if (userStr) {
-      setUser(JSON.parse(userStr))
-    }
-  }, [])
+  const { user, setUser } = useAuth()
 
   const handleLogout = async () => {
     try {
@@ -46,6 +39,9 @@ export function UserNav() {
       localStorage.removeItem("refreshToken")
       localStorage.removeItem("user")
       
+      // Update auth context
+      setUser(null)
+      
       // Redirect to login page
       router.push("/login")
     } catch (error) {
@@ -54,6 +50,7 @@ export function UserNav() {
       localStorage.removeItem("token")
       localStorage.removeItem("refreshToken")
       localStorage.removeItem("user")
+      setUser(null)
       router.push("/login")
     }
   }

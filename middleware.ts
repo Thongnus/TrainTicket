@@ -7,13 +7,13 @@ const publicRoutes = [
   '/register',
   '/forgot-password',
   '/',
-  '/search/results',
+  '/search',
   '/news',
 ]
 
 export function middleware(request: NextRequest) {
   const token = request.cookies.get('token')?.value
-  const { pathname } = request.nextUrl
+  const { pathname, search } = request.nextUrl
 
   // Kiểm tra nếu là route công khai
   if (publicRoutes.some(route => pathname.startsWith(route))) {
@@ -23,7 +23,9 @@ export function middleware(request: NextRequest) {
   // Nếu không có token và không phải route công khai, chuyển hướng về trang login
   if (!token) {
     const url = new URL('/login', request.url)
-    url.searchParams.set('returnUrl', pathname)
+    const returnUrl = pathname + search
+    console.log('Redirecting to login with returnUrl:', returnUrl)
+    url.searchParams.set('returnUrl', returnUrl)
     return NextResponse.redirect(url)
   }
 

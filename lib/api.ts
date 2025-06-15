@@ -38,7 +38,8 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const token = localStorage.getItem("token")
   if (!token) {
     // Nếu không có token, chuyển hướng về trang login
-    window.location.href = `/login?returnUrl=${encodeURIComponent(window.location.pathname)}`
+    const returnUrl = encodeURIComponent(window.location.pathname + window.location.search)
+    window.location.href = `/login?returnUrl=${returnUrl}`
     throw new Error("NO_TOKEN")
   }
 
@@ -67,7 +68,8 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
         })
       } catch (refreshError) {
         // Nếu refresh token thất bại, chuyển hướng về trang login
-        window.location.href = `/login?returnUrl=${encodeURIComponent(window.location.pathname)}`
+        const returnUrl = encodeURIComponent(window.location.pathname + window.location.search)
+        window.location.href = `/login?returnUrl=${returnUrl}`
         throw refreshError
       }
     }
