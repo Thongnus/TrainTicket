@@ -250,16 +250,6 @@ export function BookingHistory() {
               >
                 Xem chi tiết
               </Button>
-              {booking.bookingStatus.toLowerCase() === "pending" && (
-                <Button 
-                  variant="destructive" 
-                  size="sm"
-                  onClick={() => handleCancelBooking(booking.bookingId)}
-                  disabled={isLoading}
-                >
-                  Hủy vé
-                </Button>
-              )}
             </div>
           </div>
         ))}

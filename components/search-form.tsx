@@ -72,15 +72,26 @@ export function SearchForm() {
   }
 
   const stations = [
-    { id: "1", name: "Ga Hà Nội" },
-    { id: "2", name: "Ga Phủ Lý" },
-    { id: "3", name: "Ga Nam Định" },
-    { id: "4", name: "Ga Ninh Bình" },
-    { id: "5", name: "Ga Thanh Hóa" },
-    { id: "6", name: "Ga Vinh" },
-    { id: "10", name: "Ga Đà Nẵng" },
-    { id: "14", name: "Ga Nha Trang" },
-    { id: "17", name: "Ga Sài Gòn" },
+    { "id": "1", "name": "Ga Hà Nội" },
+    { "id": "2", "name": "Ga Phủ Lý" },
+    { "id": "3", "name": "Ga Nam Định" },
+    { "id": "4", "name": "Ga Ninh Bình" },
+    { "id": "5", "name": "Ga Thanh Hóa" },
+    { "id": "6", "name": "Ga Vinh" },
+    { "id": "7", "name": "Ga Đồng Hới" },
+    { "id": "8", "name": "Ga Đông Hà" },
+    { "id": "9", "name": "Ga Huế" },
+    { "id": "10", "name": "Ga Đà Nẵng" },
+    { "id": "11", "name": "Ga Tam Kỳ" },
+    { "id": "12", "name": "Ga Quảng Ngãi" },
+    { "id": "13", "name": "Ga Diêu Trì" },
+    { "id": "14", "name": "Ga Nha Trang" },
+    { "id": "15", "name": "Ga Tháp Chàm" },
+    { "id": "16", "name": "Ga Biên Hòa" },
+    { "id": "17", "name": "Ga Sài Gòn" },
+    { "id": "18", "name": "Ga Hải Phòng" },
+    { "id": "19", "name": "Ga Lào Cai" },
+    { "id": "20", "name": "Ga Đà Lạt" }
   ]
 
   return (

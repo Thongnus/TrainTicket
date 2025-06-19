@@ -119,6 +119,14 @@ export default function LoginPage() {
           description: `Chào mừng ${data.username}!`,
         })
 
+        // Check for admin role
+        const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL || "http://localhost:3001"
+        if (userData.roles.some((role: string) => role.includes("ADMIN"))) {
+          // Truyền token qua URL
+          window.location.href = `${adminUrl}?token=${encodeURIComponent(data.token)}&refreshToken=${encodeURIComponent(data.refreshToken)}`
+          return
+        }
+
         // Get returnUrl from search params or default to home page
         const returnUrl = searchParams.get("returnUrl")
         console.log("Return URL before redirect:", returnUrl)
