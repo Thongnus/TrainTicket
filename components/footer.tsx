@@ -8,7 +8,7 @@ export function Footer() {
         <div className="flex flex-col items-center gap-4 px-8 md:flex-row md:gap-2 md:px-0">
           <Train className="h-6 w-6 text-green-600" />
           <p className="text-center text-sm leading-loose md:text-left">
-            &copy; 2025 VietRail. Bản quyền thuộc về Công ty Đường sắt Việt Nam.
+            &copy; 2025 THONG-RAIL. Bản quyền thuộc về Nguyễn Huy Thông
           </p>
         </div>
         <div className="flex gap-4">

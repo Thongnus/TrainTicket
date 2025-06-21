@@ -42,7 +42,7 @@ export function NewsSection() {
       try {
         setIsLoading(true)
         setError(null)
-        const response = await fetch(`${BaseUrl}/api/new-feeds`)
+        const response = await fetch(`${BaseUrl}/new-feeds`)
         const data: ApiResponse = await response.json()
         if (data.status === 200) {
           setNews(data.data)
