@@ -127,12 +127,30 @@ export function BookingHistory() {
     if (!dateTimeStr) return "N/A";
     
     let dateTime: Date
-    if (Array.isArray(dateTimeStr)) {
-      dateTime = new Date(dateTimeStr[0], dateTimeStr[1] - 1, dateTimeStr[2], dateTimeStr[3], dateTimeStr[4])
-    } else {
-      dateTime = new Date(dateTimeStr.replace(" ", "T"))
+    try {
+      if (Array.isArray(dateTimeStr)) {
+        // Handle number array format [year, month, day, hour, minute]
+        if (dateTimeStr.length >= 5) {
+          dateTime = new Date(dateTimeStr[0], dateTimeStr[1] - 1, dateTimeStr[2], dateTimeStr[3], dateTimeStr[4])
+        } else {
+          return "N/A"
+        }
+      } else {
+        // Handle string format
+        const cleanStr = dateTimeStr.replace(" ", "T")
+        dateTime = new Date(cleanStr)
+      }
+      
+      // Check if the date is valid
+      if (isNaN(dateTime.getTime())) {
+        return "N/A"
+      }
+      
+      return format(dateTime, "HH:mm - dd/MM/yyyy", { locale: vi })
+    } catch (error) {
+      console.error("Error formatting date:", error, dateTimeStr)
+      return "N/A"
     }
-    return format(dateTime, "HH:mm - dd/MM/yyyy", { locale: vi })
   }
 
   const formatPrice = (price: number) => {

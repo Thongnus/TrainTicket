@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  # User application (Train Ticket) - Development
+  train-ticket-app-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8080/api
+      - NEXT_PUBLIC_ADMIN_URL=http://localhost:3001
+    volumes:
+      - .:/app
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - train-network-dev
+
+networks:
+  train-network-dev:
+    driver: bridge 
