@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { format } from "date-fns"
+import { format, parse, parseISO } from "date-fns"
 import { vi } from "date-fns/locale"
 import { Loader2, Receipt, Train, Calendar, Clock, MapPin, CreditCard } from "lucide-react"
 import {
@@ -56,6 +56,9 @@ interface Passenger {
   seatId: number
   passengerName: string
   identityCard: string
+  seatNumbers?: string[]
+  carriage?: string
+  carriageNumber?: string
 }
 
 interface Payment {
@@ -84,38 +87,64 @@ export function BookingHistory() {
   const [showDetails, setShowDetails] = useState(false)
   const [bookings, setBookings] = useState<Booking[]>([])
 
-  useEffect(() => {
-    const fetchBookings = async () => {
-      setIsLoading(true)
-      try {
-        const response = await fetchWithAuth("/bookings/history")
-        if (!response.ok) {
-          throw new Error("Failed to fetch booking history")
-        }
-        const data = await response.json()
-        setBookings(data)
-        console.log(data)
-      } catch (error) {
-        console.error("Error fetching booking history:", error)
-        toast({
-          title: "Lỗi tải lịch sử",
-          description: "Không thể tải lịch sử đặt vé. Vui lòng thử lại.",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
+  // Đưa fetchBookings ra ngoài useEffect để có thể gọi lại sau khi hoàn tiền
+  const fetchBookings = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetchWithAuth("/bookings/history")
+      if (!response.ok) {
+        throw new Error("Failed to fetch booking history")
       }
+      const data = await response.json()
+      setBookings(data)
+    } catch (error) {
+      toast({
+        title: "Lỗi tải lịch sử",
+        description: "Không thể tải lịch sử đặt vé. Vui lòng thử lại.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchBookings()
   }, [toast])
 
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
+      case "pending":
+        return <Badge className="bg-yellow-500">Chờ xác nhận</Badge>
+      case "confirmed":
+        return <Badge className="bg-blue-500">Đã xác nhận</Badge>
+      case "pending_cancel":
+        return <Badge className="bg-orange-400">Chờ hủy</Badge>
+      case "cancelled":
+        return <Badge className="bg-red-500">Đã hủy</Badge>
+      case "refund_processing":
+        return <Badge className="bg-orange-500">Đang hoàn tiền</Badge>
+      case "refund_failed":
+        return <Badge className="bg-gray-500">Hoàn tiền thất bại</Badge>
       case "completed":
         return <Badge className="bg-green-500">Hoàn thành</Badge>
+      default:
+        return <Badge>{status}</Badge>
+    }
+  }
+
+  const getPaymentStatusBadge = (status: string) => {
+    switch (status.toLowerCase()) {
       case "pending":
-        return <Badge className="bg-yellow-500">Đang xử lý</Badge>
+        return <Badge className="bg-yellow-500">Chờ thanh toán</Badge>
+      case "paid":
+        return <Badge className="bg-blue-500">Đã thanh toán</Badge>
+      case "refund_pending":
+        return <Badge className="bg-orange-400">Chờ hoàn tiền</Badge>
+      case "refunded":
+        return <Badge className="bg-green-700">Đã hoàn tiền</Badge>
+      case "refund_failed":
+        return <Badge className="bg-gray-500">Hoàn tiền thất bại</Badge>
       case "cancelled":
         return <Badge className="bg-red-500">Đã hủy</Badge>
       default:
@@ -124,32 +153,36 @@ export function BookingHistory() {
   }
 
   const formatDateTime = (dateTimeStr: string | number[]) => {
-    if (!dateTimeStr) return "N/A";
-    
-    let dateTime: Date
+    if (!dateTimeStr) return "";
+    let dateTime: Date;
     try {
       if (Array.isArray(dateTimeStr)) {
-        // Handle number array format [year, month, day, hour, minute]
         if (dateTimeStr.length >= 5) {
-          dateTime = new Date(dateTimeStr[0], dateTimeStr[1] - 1, dateTimeStr[2], dateTimeStr[3], dateTimeStr[4])
+          dateTime = new Date(dateTimeStr[0], dateTimeStr[1] - 1, dateTimeStr[2], dateTimeStr[3], dateTimeStr[4]);
         } else {
-          return "N/A"
+          return "";
         }
       } else {
-        // Handle string format
-        const cleanStr = dateTimeStr.replace(" ", "T")
-        dateTime = new Date(cleanStr)
+        // Thử parse ISO trước
+        if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(dateTimeStr)) {
+          dateTime = parseISO(dateTimeStr);
+        } else {
+          // Thử parse dạng 'HH:mm:ss dd/MM/yyyy'
+          if (/\d{2}:\d{2}:\d{2} \d{2}\/\d{2}\/\d{4}/.test(dateTimeStr)) {
+            dateTime = parse(dateTimeStr, "HH:mm:ss dd/MM/yyyy", new Date());
+          } else if (/\d{2}:\d{2} \d{2}\/\d{2}\/\d{4}/.test(dateTimeStr)) {
+            dateTime = parse(dateTimeStr, "HH:mm dd/MM/yyyy", new Date());
+          } else {
+            return "";
+          }
+        }
       }
-      
-      // Check if the date is valid
       if (isNaN(dateTime.getTime())) {
-        return "N/A"
+        return "";
       }
-      
-      return format(dateTime, "HH:mm - dd/MM/yyyy", { locale: vi })
+      return format(dateTime, "HH:mm - dd/MM/yyyy", { locale: vi });
     } catch (error) {
-      console.error("Error formatting date:", error, dateTimeStr)
-      return "N/A"
+      return "";
     }
   }
 
@@ -191,6 +224,31 @@ export function BookingHistory() {
       setIsLoading(false)
     }
   }
+
+  const handleRefundBooking = async (bookingId: number) => {
+    setIsLoading(true);
+    try {
+      const response = await fetchWithAuth(`/refund/booking/${bookingId}`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error("Failed to request refund");
+      }
+      toast({
+        title: "Yêu cầu hoàn tiền thành công",
+        description: `Yêu cầu hoàn tiền cho booking #${bookingId} đã được gửi.`,
+      });
+      await fetchBookings(); // Gọi lại để cập nhật danh sách
+    } catch (error) {
+      toast({
+        title: "Lỗi hoàn tiền",
+        description: "Không thể gửi yêu cầu hoàn tiền. Vui lòng thử lại.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleViewDetails = (booking: Booking) => {
     setSelectedBooking(booking)
@@ -268,6 +326,16 @@ export function BookingHistory() {
               >
                 Xem chi tiết
               </Button>
+              {booking.bookingStatus === "confirmed" && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleRefundBooking(booking.bookingId)}
+                  disabled={isLoading}
+                >
+                  Yêu cầu hoàn tiền
+                </Button>
+              )}
             </div>
           </div>
         ))}
@@ -330,6 +398,14 @@ export function BookingHistory() {
                           <span className="text-muted-foreground">CMND/CCCD:</span>
                           <span className="font-medium">{passenger.identityCard}</span>
                         </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Số ghế:</span>
+                          <span className="font-medium">{passenger.seatNumbers || passenger.seatId || ""}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Toa:</span>
+                          <span className="font-medium">{passenger.carriageNumber || ""}</span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -350,7 +426,7 @@ export function BookingHistory() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Trạng thái:</span>
-                      <span className="font-medium">{selectedBooking.payment.status}</span>
+                      <span className="font-medium">{getPaymentStatusBadge(selectedBooking.payment.status)}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Mã giao dịch:</span>
