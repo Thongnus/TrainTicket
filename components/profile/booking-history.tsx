@@ -86,31 +86,44 @@ export function BookingHistory() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
   const [showDetails, setShowDetails] = useState(false)
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [page, setPage] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  // Custom toast state
+  const [customToast, setCustomToast] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'info';
+  }>({
+    show: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
 
-  // Đưa fetchBookings ra ngoài useEffect để có thể gọi lại sau khi hoàn tiền
-  const fetchBookings = async () => {
+  const fetchBookings = async (pageNumber = 0) => {
     setIsLoading(true)
     try {
-      const response = await fetchWithAuth("/bookings/history")
+      const response = await fetchWithAuth(`/bookings/history?page=${pageNumber}`)
       if (!response.ok) {
-        throw new Error("Failed to fetch booking history")
+        showCustomToast("Lỗi tải lịch sử", "Không thể tải lịch sử đặt vé. Vui lòng thử lại.", "error");
+        return;
       }
       const data = await response.json()
-      setBookings(data)
+      setBookings(data.content || [])
+      setTotalPages(data.totalPages || 1)
+      setPage(data.number || 0)
     } catch (error) {
-      toast({
-        title: "Lỗi tải lịch sử",
-        description: "Không thể tải lịch sử đặt vé. Vui lòng thử lại.",
-        variant: "destructive",
-      })
+      showCustomToast("Lỗi tải lịch sử", "Không thể tải lịch sử đặt vé. Vui lòng thử lại.", "error");
     } finally {
       setIsLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchBookings()
-  }, [toast])
+    fetchBookings(page)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, toast])
 
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
@@ -126,6 +139,8 @@ export function BookingHistory() {
         return <Badge className="bg-orange-500">Đang hoàn tiền</Badge>
       case "refund_failed":
         return <Badge className="bg-gray-500">Hoàn tiền thất bại</Badge>
+      case "refunded":
+        return <Badge className="bg-green-700">Đã hoàn tiền</Badge>
       case "completed":
         return <Badge className="bg-green-500">Hoàn thành</Badge>
       default:
@@ -198,7 +213,8 @@ export function BookingHistory() {
       })
       
       if (!response.ok) {
-        throw new Error("Failed to cancel booking")
+        showCustomToast("Lỗi hủy vé", "Không thể hủy vé. Vui lòng thử lại.", "error");
+        return;
       }
 
       // Refresh booking list
@@ -209,17 +225,10 @@ export function BookingHistory() {
       )
       setBookings(updatedBookings)
       
-      toast({
-        title: "Hủy vé thành công",
-        description: "Vé đã được hủy thành công.",
-      })
+      showCustomToast("Hủy vé thành công", "Vé đã được hủy thành công.", "success");
     } catch (error) {
       console.error("Error cancelling booking:", error)
-      toast({
-        title: "Lỗi hủy vé",
-        description: "Không thể hủy vé. Vui lòng thử lại.",
-        variant: "destructive",
-      })
+      showCustomToast("Lỗi hủy vé", "Không thể hủy vé. Vui lòng thử lại.", "error");
     } finally {
       setIsLoading(false)
     }
@@ -228,23 +237,21 @@ export function BookingHistory() {
   const handleRefundBooking = async (bookingId: number) => {
     setIsLoading(true);
     try {
-      const response = await fetchWithAuth(`/refund/booking/${bookingId}`, {
+      const response = await fetchWithAuth(`/refunds/booking/${bookingId}`, {
         method: 'POST',
       });
-      if (!response.ok) {
-        throw new Error("Failed to request refund");
-      }
-      toast({
-        title: "Yêu cầu hoàn tiền thành công",
-        description: `Yêu cầu hoàn tiền cho booking #${bookingId} đã được gửi.`,
-      });
-      await fetchBookings(); // Gọi lại để cập nhật danh sách
+      const data = await response.json();
+      // if (!response.ok || data.code === "A09") {
+      //   const errorMsg = data.code === "A09"
+      //     ? "Vượt quá thời gian hoàn tiền"
+      //     : (data.message || "Yêu cầu hoàn tiền không hợp lệ hoặc đã quá thời gian quy định.");
+      //   showCustomToast("Không thể hoàn tiền", errorMsg, "error");
+      //   return;
+      // }
+      showCustomToast("Yêu cầu hoàn tiền thành công", `Yêu cầu hoàn tiền cho booking #${bookingId} đã được gửi.`, "success");
+      await fetchBookings(page); // Gọi lại để cập nhật danh sách đúng trang hiện tại
     } catch (error) {
-      toast({
-        title: "Lỗi hoàn tiền",
-        description: "Không thể gửi yêu cầu hoàn tiền. Vui lòng thử lại.",
-        variant: "destructive",
-      });
+      showCustomToast("Lỗi hoàn tiền", "Không thể gửi yêu cầu hoàn tiền. Vui lòng thử lại.", "error");
     } finally {
       setIsLoading(false);
     }
@@ -254,6 +261,12 @@ export function BookingHistory() {
     setSelectedBooking(booking)
     setShowDetails(true)
   }
+
+  // Custom toast function
+  const showCustomToast = (title: string, message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setCustomToast({ show: true, title, message, type });
+    setTimeout(() => setCustomToast({ show: false, title: '', message: '', type: 'info' }), 4000);
+  };
 
   if (isLoading) {
     return (
@@ -339,6 +352,27 @@ export function BookingHistory() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Pagination controls */}
+      <div className="flex justify-center gap-2 mt-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setPage(page - 1)}
+          disabled={page === 0}
+        >
+          Trang trước
+        </Button>
+        <span className="px-2 py-1">Trang {page + 1} / {totalPages}</span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setPage(page + 1)}
+          disabled={page + 1 >= totalPages}
+        >
+          Trang sau
+        </Button>
       </div>
 
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
@@ -447,6 +481,22 @@ export function BookingHistory() {
           )}
         </DialogContent>
       </Dialog>
+      {customToast.show && (
+        <div className={`fixed top-4 right-4 z-[9999] p-4 rounded-lg shadow-lg border max-w-sm ` +
+          (customToast.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
+            customToast.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
+            'bg-blue-50 border-blue-200 text-blue-800')
+        }>
+          <div className="font-semibold">{customToast.title}</div>
+          <div className="text-sm mt-1">{customToast.message}</div>
+          <button
+            onClick={() => setCustomToast({ show: false, title: '', message: '', type: 'info' })}
+            className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+          >
+            ×
+          </button>
+        </div>
+      )}
     </>
   )
 } 

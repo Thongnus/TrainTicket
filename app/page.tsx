@@ -27,8 +27,10 @@ import {
   Wifi,
   Coffee,
 } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function Home() {
+  const { toast } = useToast()
   return (
     <div className="flex min-h-screen flex-col">
   
@@ -275,6 +277,14 @@ export default function Home() {
       </main>
 
       <Footer />
+
+      <button
+        style={{ position: "fixed", bottom: 20, right: 20, zIndex: 9999 }}
+        onClick={() => toast({ title: "Test toast", description: "Toast này phải hiện!" })}
+        className="bg-blue-500 text-white px-4 py-2 rounded shadow"
+      >
+        Test Toast
+      </button>
     </div>
   )
 }
