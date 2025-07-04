@@ -240,14 +240,23 @@ export function BookingHistory() {
       const response = await fetchWithAuth(`/refunds/booking/${bookingId}`, {
         method: 'POST',
       });
-      const data = await response.json();
-      // if (!response.ok || data.code === "A09") {
-      //   const errorMsg = data.code === "A09"
-      //     ? "Vượt quá thời gian hoàn tiền"
-      //     : (data.message || "Yêu cầu hoàn tiền không hợp lệ hoặc đã quá thời gian quy định.");
-      //   showCustomToast("Không thể hoàn tiền", errorMsg, "error");
-      //   return;
-      // }
+      let data: any = {};
+      let isJson = true;
+      try {
+        data = await response.json();
+      } catch (e) {
+        isJson = false;
+      }
+      if (!response.ok) {
+        const errorMsg = isJson && data.message ? data.message : "Yêu cầu hoàn tiền không hợp lệ hoặc đã quá thời gian quy định.";
+        showCustomToast("Không thể hoàn tiền", errorMsg, "error");
+        return;
+      }
+      if (isJson && data.code === "A09") {
+        const errorMsg = "Vượt quá thời gian hoàn tiền";
+        showCustomToast("Không thể hoàn tiền", errorMsg, "error");
+        return;
+      }
       showCustomToast("Yêu cầu hoàn tiền thành công", `Yêu cầu hoàn tiền cho booking #${bookingId} đã được gửi.`, "success");
       await fetchBookings(page); // Gọi lại để cập nhật danh sách đúng trang hiện tại
     } catch (error) {

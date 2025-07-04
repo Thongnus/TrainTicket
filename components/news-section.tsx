@@ -27,7 +27,7 @@ interface ApiResponse {
   timestamp: number
 }
 
-const BaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+const BaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api"
 
 export function NewsSection() {
   const [news, setNews] = useState<NewsItem[]>([])
