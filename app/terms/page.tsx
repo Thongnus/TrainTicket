@@ -18,38 +18,12 @@ import {
   Home,
 } from "lucide-react"
 import Link from "next/link"
+import { MainNav } from "@/components/main-nav"
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-green-50/30">
-      {/* Navigation Bar */}
-      <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
-              <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
-                <ArrowLeft className="h-4 w-4" />
-                <span className="text-sm font-medium">Quay lại</span>
-              </Link>
-              <div className="h-6 w-px bg-gray-300" />
-              <div className="flex items-center gap-2">
-                <div className="rounded-lg bg-green-100 p-1.5">
-                  <FileText className="h-4 w-4 text-green-600" />
-                </div>
-                <h1 className="text-lg font-semibold text-gray-900">Điều khoản & Quy định</h1>
-              </div>
-            </div>
-            <Link href="/">
-              <Button variant="outline" size="sm" className="gap-2 bg-transparent">
-                <Home className="h-4 w-4" />
-                Trang chủ
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+  
+      <main className="container mx-auto py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Sidebar - Table of Contents */}
           <div className="lg:col-span-1">
@@ -291,6 +265,7 @@ export default function TermsPage() {
                 <div className="space-y-6">
                   <h4 className="text-xl font-semibold text-green-900">2.1. Thời gian hoàn trả theo lịch trình</h4>
                   <div className="grid gap-4 sm:gap-6">
+                    {/* 1. Hoàn 100% trước 24h */}
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-6 bg-white rounded-2xl border border-green-200 shadow-sm">
                       <div className="rounded-full bg-green-100 p-3">
                         <Clock className="h-6 w-6 text-green-600" />
@@ -301,56 +276,36 @@ export default function TermsPage() {
                           <span className="text-lg font-semibold text-gray-900">Hoàn 100% giá vé</span>
                         </div>
                         <p className="text-gray-600">
-                          Hủy vé trước 24 giờ so với giờ khởi hành được hoàn lại toàn bộ số tiền
+                          Khách hoàn vé trước giờ tàu chạy tối thiểu 24h sẽ được hoàn lại toàn bộ số tiền vé.
                         </p>
                       </div>
                     </div>
-
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-6 bg-white rounded-2xl border border-orange-200 shadow-sm">
-                      <div className="rounded-full bg-orange-100 p-3">
-                        <Clock className="h-6 w-6 text-orange-600" />
+                    {/* 2. Hoàn 90% từ 6h - 24h */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-6 bg-white rounded-2xl border border-yellow-200 shadow-sm">
+                      <div className="rounded-full bg-yellow-100 p-3">
+                        <Clock className="h-6 w-6 text-yellow-600" />
                       </div>
                       <div className="flex-1">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                          <Badge
-                            variant="secondary"
-                            className="bg-orange-100 text-orange-800 hover:bg-orange-200 w-fit"
-                          >
-                            12-24h
-                          </Badge>
-                          <span className="text-lg font-semibold text-gray-900">Hoàn 80% giá vé</span>
+                          <Badge className="bg-yellow-400 text-yellow-900 hover:bg-yellow-500 w-fit">6h - 24h</Badge>
+                          <span className="text-lg font-semibold text-gray-900">Hoàn 90% giá vé</span>
                         </div>
-                        <p className="text-gray-600">Hủy vé từ 12-24 giờ trước giờ khởi hành, phí hủy 20%</p>
+                        <p className="text-gray-600">
+                          Khách hoàn vé trong khoảng 6 đến 24 giờ trước giờ tàu chạy sẽ được hoàn 90% giá vé (phí hủy 10%).
+                        </p>
                       </div>
                     </div>
-
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-6 bg-white rounded-2xl border border-red-200 shadow-sm">
-                      <div className="rounded-full bg-red-100 p-3">
-                        <Clock className="h-6 w-6 text-red-600" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                          <Badge variant="destructive" className="bg-red-600 hover:bg-red-700 w-fit">
-                            Dưới 12h
-                          </Badge>
-                          <span className="text-lg font-semibold text-gray-900">Hoàn 50% giá vé</span>
-                        </div>
-                        <p className="text-gray-600">Hủy vé dưới 12 giờ trước giờ khởi hành, phí hủy 50%</p>
-                      </div>
-                    </div>
-
+                    {/* 3. Không hoàn dưới 6h */}
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-6 bg-gray-50 rounded-2xl border border-gray-200 shadow-sm">
                       <div className="rounded-full bg-gray-100 p-3">
                         <AlertTriangle className="h-6 w-6 text-gray-600" />
                       </div>
                       <div className="flex-1">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                          <Badge variant="outline" className="border-gray-400 w-fit">
-                            Sau khởi hành
-                          </Badge>
+                          <Badge variant="outline" className="border-gray-400 w-fit">Dưới 6h</Badge>
                           <span className="text-lg font-semibold text-gray-900">Không hoàn tiền</span>
                         </div>
-                        <p className="text-gray-600">Không áp dụng hoàn tiền sau khi tàu đã khởi hành</p>
+                        <p className="text-gray-600">Không hỗ trợ hoàn trong vòng 6h trước khi tàu chạy.</p>
                       </div>
                     </div>
                   </div>
@@ -705,6 +660,6 @@ export default function TermsPage() {
           </div>
         </div>
       </main>
-    </div>
+   
   )
 }
