@@ -43,7 +43,24 @@ export function MainNav() {
         >
           Tin tức
         </Link>
- 
+        <Link
+          href="/chatbot"
+          className={cn(
+            "transition-colors hover:text-foreground/80",
+            pathname?.startsWith("/chatbot") ? "text-foreground" : "text-foreground/60",
+          )}
+        >
+          Chat Bot
+        </Link>
+        <Link
+          href="/terms"
+          className={cn(
+            "transition-colors hover:text-foreground/80",
+            pathname?.startsWith("/terms") ? "text-foreground" : "text-foreground/60",
+          )}
+        >
+          Chính sách
+        </Link>
       </nav>
     </div>
   )
